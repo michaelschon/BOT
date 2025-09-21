@@ -36,7 +36,7 @@ const FRASES_BLOQUEIO = [
 
 module.exports = {
   name: "!apelido",
-  aliases: ["!nick", "!nickname"],
+  aliases: ["!nickname"],
   description: "Define seu apelido no grupo atual",
   usage: "!apelido <novo_apelido>",
   category: "apelidos",

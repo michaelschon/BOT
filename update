@@ -1,0 +1,6 @@
+#!/bin/bash
+#git pull --rebase --autostash
+git status
+git add .
+git commit -m "Update"
+git push -u origin main

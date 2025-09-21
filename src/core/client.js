@@ -15,7 +15,7 @@ const { statements } = require("./db");
  */
 const CLIENT_CONFIG = {
   authStrategy: new LocalAuth({
-    dataPath: './data/wwebjs_auth'
+    dataPath: '.wwebjs_auth'
   }),
   puppeteer: {
     headless: true,

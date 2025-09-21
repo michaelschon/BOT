@@ -11,7 +11,7 @@ const logger = require("../../utils/logger");
 
 module.exports = {
   name: "!meuapelido",
-  aliases: ["!meunick", "!apelido?"],
+  aliases: ["!meunick", "!apelido?", "!nick"],
   description: "Mostra seu apelido atual no grupo",
   usage: "!meuapelido",
   category: "apelidos",

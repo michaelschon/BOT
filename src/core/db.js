@@ -3,6 +3,7 @@
  * Gerencia todas as tabelas e operações do banco
  * 
  * @author Volleyball Team
+ * @version 2.1 - Sistema de Silenciamento Integrado
  */
 
 const Database = require("better-sqlite3");
@@ -99,6 +100,20 @@ function runMigrations() {
       )
     `).run();
     
+    // ========== TABELA: silenciados (NOVA) ==========
+    db.prepare(`
+      CREATE TABLE IF NOT EXISTS silenciados (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        grupo_id TEXT NOT NULL,
+        usuario_id TEXT NOT NULL,
+        silenciado_por TEXT NOT NULL,
+        minutos INTEGER,
+        expires_at DATETIME,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(grupo_id, usuario_id)
+      )
+    `).run();
+    
     // ========== TABELA: auditoria ==========
     db.prepare(`
       CREATE TABLE IF NOT EXISTS auditoria (
@@ -114,6 +129,8 @@ function runMigrations() {
     `).run();
     
     // ========== ÍNDICES PARA PERFORMANCE ==========
+    
+    // Índices existentes
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_auditoria_usuario_comando 
                 ON auditoria(usuario_id, comando)`).run();
     
@@ -122,6 +139,16 @@ function runMigrations() {
     
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_permissoes_grupo_usuario 
                 ON permissoes_especiais(grupo_id, usuario_id)`).run();
+    
+    // Novos índices para sistema de silenciamento
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_silenciados_grupo_usuario 
+                ON silenciados(grupo_id, usuario_id)`).run();
+    
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_silenciados_expires 
+                ON silenciados(expires_at)`).run();
+    
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_silenciados_grupo 
+                ON silenciados(grupo_id)`).run();
     
     // ========== INSERIR USUÁRIO MASTER ==========
     const masterPhone = "5519999222004@c.us";
@@ -161,7 +188,7 @@ function createTriggers() {
       END
     `).run();
     
-    // Trigger para tabela apelidos (não tem coluna id individual, usa chave composta)
+    // Trigger para tabela apelidos
     db.prepare(`
       CREATE TRIGGER IF NOT EXISTS update_apelidos_updated_at
       AFTER UPDATE ON apelidos
@@ -170,6 +197,9 @@ function createTriggers() {
         WHERE grupo_id = NEW.grupo_id AND usuario_id = NEW.usuario_id;
       END
     `).run();
+    
+    // Não criar trigger automático - a limpeza será feita via código
+    // para evitar problemas com funções não-determinísticas
     
     logger.debug("✅ Triggers criados com sucesso");
     
@@ -213,19 +243,85 @@ function safeQuery(query, params = []) {
   }
 }
 
+/**
+ * Função para verificar integridade do banco
+ * @returns {object} Resultado da verificação
+ */
+function checkDatabaseIntegrity() {
+  try {
+    const result = db.prepare('PRAGMA integrity_check').get();
+    
+    const stats = {
+      grupos: db.prepare('SELECT COUNT(*) as count FROM grupos').get().count,
+      usuarios: db.prepare('SELECT COUNT(*) as count FROM usuarios').get().count,
+      admins: db.prepare('SELECT COUNT(*) as count FROM admins_grupos').get().count,
+      apelidos: db.prepare('SELECT COUNT(*) as count FROM apelidos').get().count,
+      silenciados: db.prepare('SELECT COUNT(*) as count FROM silenciados').get().count,
+      auditoria: db.prepare('SELECT COUNT(*) as count FROM auditoria').get().count
+    };
+    
+    logger.info("📊 Estatísticas do banco:", stats);
+    
+    return {
+      integrity: result.integrity_check === 'ok',
+      stats,
+      message: result.integrity_check
+    };
+    
+  } catch (error) {
+    logger.error("❌ Erro ao verificar integridade:", error.message);
+    return {
+      integrity: false,
+      error: error.message
+    };
+  }
+}
+
+/**
+ * Limpa silenciamentos expirados
+ * @returns {number} Número de registros removidos
+ */
+function cleanExpiredSilences() {
+  try {
+    const result = db.prepare(`
+      DELETE FROM silenciados 
+      WHERE expires_at IS NOT NULL 
+      AND expires_at <= datetime('now')
+    `).run();
+    
+    if (result.changes > 0) {
+      logger.info(`🧹 Limpeza: ${result.changes} silenciamentos expirados removidos`);
+    }
+    
+    return result.changes;
+    
+  } catch (error) {
+    logger.error("❌ Erro na limpeza de silenciamentos:", error.message);
+    return 0;
+  }
+}
+
 // Executa migrations na inicialização
 runMigrations();
 createTriggers();
+
+// Verifica integridade inicial
+const integrity = checkDatabaseIntegrity();
+if (!integrity.integrity) {
+  logger.warn("⚠️ Problemas de integridade detectados no banco de dados");
+}
 
 // Exporta o banco e funções utilitárias
 module.exports = {
   db,
   safeQuery,
   createBackup,
+  checkDatabaseIntegrity,
+  cleanExpiredSilences,
   
   // Prepared statements para operações comuns
   statements: {
-    // Usuários
+    // ========== Usuários ==========
     insertUser: db.prepare(`
       INSERT OR REPLACE INTO usuarios (id, name, phone) 
       VALUES (?, ?, ?)
@@ -235,7 +331,7 @@ module.exports = {
       SELECT * FROM usuarios WHERE id = ?
     `),
     
-    // Grupos
+    // ========== Grupos ==========
     insertGroup: db.prepare(`
       INSERT OR REPLACE INTO grupos (id, name, description) 
       VALUES (?, ?, ?)
@@ -245,7 +341,7 @@ module.exports = {
       SELECT * FROM grupos WHERE id = ?
     `),
     
-    // Admins
+    // ========== Admins ==========
     isGroupAdmin: db.prepare(`
       SELECT 1 FROM admins_grupos 
       WHERE grupo_id = ? AND usuario_id = ?
@@ -261,7 +357,7 @@ module.exports = {
       WHERE grupo_id = ? AND usuario_id = ?
     `),
     
-    // Permissões especiais
+    // ========== Permissões especiais ==========
     hasSpecialPermission: db.prepare(`
       SELECT permitido FROM permissoes_especiais 
       WHERE grupo_id = ? AND usuario_id = ? AND comando = ?
@@ -274,7 +370,7 @@ module.exports = {
       VALUES (?, ?, ?, ?, ?, ?)
     `),
     
-    // Apelidos
+    // ========== Apelidos ==========
     getNickname: db.prepare(`
       SELECT nickname, locked FROM apelidos 
       WHERE grupo_id = ? AND usuario_id = ?
@@ -290,10 +386,79 @@ module.exports = {
       WHERE grupo_id = ? AND usuario_id = ?
     `),
     
-    // Auditoria
+    // ========== Sistema de Silenciamento ==========
+    isSilenced: db.prepare(`
+      SELECT 1 FROM silenciados 
+      WHERE grupo_id = ? AND usuario_id = ?
+      AND (expires_at IS NULL OR expires_at > datetime('now'))
+    `),
+    
+    addSilenced: db.prepare(`
+      INSERT OR REPLACE INTO silenciados 
+      (grupo_id, usuario_id, silenciado_por, minutos, expires_at) 
+      VALUES (?, ?, ?, ?, ?)
+    `),
+    
+    removeSilenced: db.prepare(`
+      DELETE FROM silenciados 
+      WHERE grupo_id = ? AND usuario_id = ?
+    `),
+    
+    getSilenced: db.prepare(`
+      SELECT * FROM silenciados 
+      WHERE grupo_id = ? AND usuario_id = ?
+      AND (expires_at IS NULL OR expires_at > datetime('now'))
+    `),
+    
+    getAllSilencedInGroup: db.prepare(`
+      SELECT s.*, u.name as usuario_nome 
+      FROM silenciados s
+      LEFT JOIN usuarios u ON s.usuario_id = u.id
+      WHERE s.grupo_id = ?
+      AND (s.expires_at IS NULL OR s.expires_at > datetime('now'))
+      ORDER BY s.created_at DESC
+    `),
+    
+    removeAllSilencedInGroup: db.prepare(`
+      DELETE FROM silenciados WHERE grupo_id = ?
+    `),
+    
+    // ========== Auditoria ==========
     logCommand: db.prepare(`
       INSERT INTO auditoria (usuario_id, grupo_id, comando, argumentos, sucesso, erro) 
       VALUES (?, ?, ?, ?, ?, ?)
+    `),
+    
+    getAuditLog: db.prepare(`
+      SELECT a.*, u.name as usuario_nome, g.name as grupo_nome
+      FROM auditoria a
+      LEFT JOIN usuarios u ON a.usuario_id = u.id
+      LEFT JOIN grupos g ON a.grupo_id = g.id
+      WHERE a.grupo_id = ?
+      ORDER BY a.timestamp DESC
+      LIMIT ?
+    `),
+    
+    // ========== Estatísticas ==========
+    getGroupStats: db.prepare(`
+      SELECT 
+        (SELECT COUNT(*) FROM usuarios u WHERE EXISTS(
+          SELECT 1 FROM admins_grupos ag WHERE ag.usuario_id = u.id AND ag.grupo_id = ?
+        )) as total_admins,
+        (SELECT COUNT(*) FROM apelidos WHERE grupo_id = ?) as total_apelidos,
+        (SELECT COUNT(*) FROM silenciados WHERE grupo_id = ? 
+         AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)) as total_silenciados,
+        (SELECT COUNT(*) FROM auditoria WHERE grupo_id = ? 
+         AND timestamp > datetime('now', '-30 days')) as comandos_30_dias
+    `),
+    
+    getUserStats: db.prepare(`
+      SELECT 
+        (SELECT COUNT(*) FROM auditoria WHERE usuario_id = ? AND sucesso = 1) as comandos_sucesso,
+        (SELECT COUNT(*) FROM auditoria WHERE usuario_id = ? AND sucesso = 0) as comandos_erro,
+        (SELECT nickname FROM apelidos WHERE usuario_id = ? AND grupo_id = ?) as apelido_atual,
+        (SELECT 1 FROM silenciados WHERE usuario_id = ? AND grupo_id = ? 
+         AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)) as esta_silenciado
     `)
   }
 };
