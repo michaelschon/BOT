@@ -1,0 +1,18 @@
+{
+  "120363415542889290@g.us": {
+    "enabled": true,
+    "startTime": "21:55",
+    "endTime": "22:00",
+    "configuredBy": "5519999222004@c.us",
+    "configuredAt": "20/09/2025, 21:52:10",
+    "groupId": "120363415542889290@g.us"
+  },
+  "120363421264397795@g.us": {
+    "enabled": true,
+    "startTime": "22:00",
+    "endTime": "08:00",
+    "configuredBy": "5519999222004@c.us",
+    "configuredAt": "20/09/2025, 21:55:57",
+    "groupId": "120363421264397795@g.us"
+  }
+}
