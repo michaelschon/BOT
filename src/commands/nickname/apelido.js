@@ -1,13 +1,14 @@
+// ===== src/commands/nickname/apelido.js =====
 /**
- * Sistema de apelidos para grupos de volleyball
- * Permite que usuários definam apelidos únicos por grupo
- * * @author Volleyball Team
- * @version 3.2 - Corrigida a chamada ao DB mantendo a lógica original
+ * Comando !apelido - Corrigido para usar o novo sistema
+ * Permite definir e alterar apelidos no grupo de volleyball
+ * 
+ * @author Volleyball Team
+ * @version 3.0 - Corrigido para o novo sistema otimizado
  */
 
 const { statements } = require("../../core/db");
-const { getSenderId } = require("../../config/auth");
-const { checkCooldown, setCooldown, validateCommandArgs } = require("../../config/commands");
+const { getCooldown, setCooldown } = require("../../core/cache");
 const logger = require("../../utils/logger");
 
 // Frases divertidas para quando o usuário está bloqueado
@@ -33,99 +34,200 @@ module.exports = {
   name: '!apelido',
   description: 'Define ou altera seu apelido no grupo.',
   category: 'nickname',
-  usage: '[seu apelido]',
+  usage: '!apelido [seu apelido]',
   aliases: ['!setnick', '!nickname'],
   requireAdmin: false,
 
+  /**
+   * Executa o comando apelido
+   * @param {Client} client Cliente do WhatsApp
+   * @param {Message} msg Mensagem recebida
+   * @param {Array} args Argumentos do comando
+   * @param {string} senderId ID de quem enviou
+   */
   async execute(client, msg, args, senderId) {
     try {
       const chat = await msg.getChat();
+      
+      // ===== VALIDAÇÕES BÁSICAS =====
       if (!chat.isGroup) {
-        return msg.reply('⚠️ Este comando só pode ser usado em grupos.');
+        await msg.reply('⚠️ Este comando só pode ser usado em grupos.');
+        return;
+      }
+      
+      // Verificar se forneceu apelido
+      if (args.length === 0) {
+        await msg.reply(
+          `⚠️ **Uso correto:** \`!apelido SeuApelido\`\n\n` +
+          `📝 **Exemplos:**\n` +
+          `• \`!apelido João\`\n` +
+          `• \`!apelido Ace\`\n` +
+          `• \`!apelido ⚡Lightning⚡\`\n\n` +
+          `💡 **Dicas:**\n` +
+          `• Entre 2 e 30 caracteres\n` +
+          `• Seja criativo mas respeitoso\n` +
+          `• Emojis são bem-vindos! 🏐\n\n` +
+          `📋 Para ver seu apelido atual: \`!nick\``
+        );
+        return;
       }
       
       const groupId = chat.id._serialized;
       const novoApelido = args.join(' ').trim();
       
-      // Validação de cooldown
-      if (checkCooldown(senderId, "!apelido")) {
-        return msg.reply("⏳ Você trocou de apelido recentemente. Aguarde um pouco antes de trocar novamente.");
+      // ===== VERIFICAÇÃO DE COOLDOWN =====
+      const cooldownLeft = getCooldown(senderId, "!apelido");
+      if (cooldownLeft > 0) {
+        const segundos = Math.ceil(cooldownLeft / 1000);
+        await msg.reply(
+          `⏰ **Cooldown ativo**\n\n` +
+          `⏳ Aguarde **${segundos}s** antes de alterar o apelido novamente.\n\n` +
+          `💡 Este limite evita spam e garante que todos tenham tempo de se acostumar com seu novo apelido!`
+        );
+        return;
       }
       
-      // Validações básicas do apelido
-      const validation = validateCommandArgs(
-        novoApelido,
-        { min: 2, max: 30, regex: /^[a-zA-Z0-9À-ú\s_.-]+$/ },
-        "apelido"
-      );
+      // ===== VALIDAÇÕES DO APELIDO =====
       
-      if (!validation.valid) {
-        return msg.reply(validation.error);
+      // Tamanho
+      if (novoApelido.length < 2) {
+        await msg.reply(
+          `❌ **Apelido muito curto!**\n\n` +
+          `📏 Mínimo: **2 caracteres**\n` +
+          `📝 Você digitou: **${novoApelido.length} caractere(s)**\n\n` +
+          `💡 Tente algo como: \`Ace\`, \`Jo\`, \`⚡\``
+        );
+        return;
       }
       
-      // Consultas ao banco
+      if (novoApelido.length > 30) {
+        await msg.reply(
+          `❌ **Apelido muito longo!**\n\n` +
+          `📏 Máximo: **30 caracteres**\n` +
+          `📝 Você digitou: **${novoApelido.length} caracteres**\n\n` +
+          `💡 Tente encurtá-lo: "${novoApelido.substring(0, 25)}..."`
+        );
+        return;
+      }
+      
+      // Caracteres proibidos básicos
+      const caracteresProibidos = /[<>{}\\]/;
+      if (caracteresProibidos.test(novoApelido)) {
+        await msg.reply(
+          `❌ **Caracteres não permitidos!**\n\n` +
+          `🚫 Evite: \`< > { } \\\`\n` +
+          `✅ Permitidos: letras, números, emojis, espaços, _ - .\n\n` +
+          `💡 Seja criativo mas use caracteres normais!`
+        );
+        return;
+      }
+      
+      // ===== CONSULTAS AO BANCO =====
+      
+      // Verificar apelido atual
       const apelidoAnterior = statements.getNickname.get(groupId, senderId);
-      const isTaken = statements.isNicknameInUse.get(groupId, novoApelido, senderId);
       
-      // Se o apelido já está em uso
-      if (isTaken) {
-        return msg.reply(`⚠️ O apelido "${novoApelido}" já está em uso por outra pessoa. Por favor, escolha outro.`);
+      // Verificar se o novo apelido já está em uso
+      const apelidoEmUso = statements.isNicknameInUse.get(groupId, novoApelido, senderId);
+      
+      // ===== VALIDAÇÕES DE REGRAS DE NEGÓCIO =====
+      
+      // Se o apelido já está em uso por outra pessoa
+      if (apelidoEmUso) {
+        await msg.reply(
+          `⚠️ **Apelido indisponível!**\n\n` +
+          `🏷️ **"${novoApelido}"** já está sendo usado por outra pessoa no grupo.\n\n` +
+          `💡 **Sugestões:**\n` +
+          `• ${novoApelido}2\n` +
+          `• ${novoApelido}_\n` +
+          `• ${novoApelido}🏐\n` +
+          `• ${novoApelido}Ace\n\n` +
+          `🤝 Seja criativo e encontre uma variação única!`
+        );
+        return;
       }
       
-      // Se o apelido atual do usuário está bloqueado
+      // Se o apelido atual está bloqueado por admin
       if (apelidoAnterior && apelidoAnterior.locked) {
         const frase = FRASES_BLOQUEIO[Math.floor(Math.random() * FRASES_BLOQUEIO.length)];
-        return msg.reply(`🔒 Seu apelido atual ("${apelidoAnterior.nickname}") está bloqueado e não pode ser alterado.\n\n${frase}`);
+        await msg.reply(
+          `🔒 **Apelido bloqueado para alteração!**\n\n` +
+          `🏷️ **Apelido atual:** "${apelidoAnterior.nickname}"\n` +
+          `👮 **Status:** Bloqueado por admin\n\n` +
+          `${frase}\n\n` +
+          `💡 **Para liberar:** Peça para um admin usar \`!desbloquear ${apelidoAnterior.nickname}\``
+        );
+        return;
       }
       
+      // ===== EXECUTAR ALTERAÇÃO =====
+      
       try {
-        // =================================================================
-        // ===== INÍCIO DA SEÇÃO CORRIGIDA =====
-        // =================================================================
-        // Esta é a única linha que foi alterada para corrigir o bug.
-        // Agora ela passa os 6 parâmetros que o 'db.js' espera.
+        // Usar a query corrigida com os 6 parâmetros necessários
         statements.setNickname.run(
-          groupId,
-          senderId,
-          novoApelido,
-          senderId, // set_by
-          groupId,  // Parâmetro extra para a subquery COALESCE
-          senderId  // Parâmetro extra para a subquery COALESCE
+          groupId,        // grupo_id
+          senderId,       // usuario_id  
+          novoApelido,    // nickname
+          senderId,       // set_by
+          groupId,        // Para a subquery COALESCE (grupo_id)
+          senderId        // Para a subquery COALESCE (usuario_id)
         );
-        // ===============================================================
-        // ===== FIM DA SEÇÃO CORRIGIDA =====
-        // ===============================================================
+        
+        // ===== RESPOSTA DE SUCESSO =====
         
         let resposta;
+        
         if (apelidoAnterior && apelidoAnterior.nickname) {
-          resposta = `✅ Apelido alterado de "${apelidoAnterior.nickname}" para "${novoApelido}"!\n\n`;
-          resposta += `✨ Agora todos vão te chamar de ${novoApelido} nas partidas!`;
+          // Usuário alterou apelido existente
+          resposta = 
+            `✅ **Apelido alterado com sucesso!**\n\n` +
+            `🔄 **De:** "${apelidoAnterior.nickname}"\n` +
+            `🔄 **Para:** "${novoApelido}"\n\n` +
+            `🏐 Agora todos vão te chamar de **${novoApelido}** nas partidas!\n\n` +
+            `💡 Lembre-se: você pode alterar novamente após o cooldown.`;
         } else {
-          resposta = `🏐 Seja bem-vindo(a), ${novoApelido}!\n\n`;
-          resposta += `✨ Seu apelido foi definido com sucesso! Agora você faz parte oficial do time!`;
+          // Usuário definiu primeiro apelido
+          resposta = 
+            `🎉 **Bem-vindo(a) ao time, ${novoApelido}!**\n\n` +
+            `✨ Seu apelido foi definido com sucesso!\n` +
+            `🏐 Agora você faz parte oficial da família do volleyball!\n\n` +
+            `🤝 **Próximos passos:**\n` +
+            `• Participe das partidas\n` +
+            `• Interaja com o pessoal\n` +
+            `• Divirta-se jogando!\n\n` +
+            `💡 Use \`!nick\` para ver detalhes do seu apelido.`;
         }
         
         await msg.reply(resposta);
         
-        // Log detalhado
-        logger.info(
-          `✅ Apelido definido: ${senderId} -> \"${novoApelido}\" ` +
-          `no grupo \"${chat.name}\" (${groupId})`
-        );
+        // ===== LOGS E REGISTRO =====
         
+        // Log detalhado para admin
         if (apelidoAnterior && apelidoAnterior.nickname) {
-          logger.info(`📝 Mudança: \"${apelidoAnterior.nickname}\" -> \"${novoApelido}\"`);
+          logger.info(
+            `📝 Apelido alterado: ${senderId} de "${apelidoAnterior.nickname}" ` +
+            `para "${novoApelido}" no grupo "${chat.name}" (${groupId})`
+          );
+        } else {
+          logger.info(
+            `🆕 Primeiro apelido definido: ${senderId} -> "${novoApelido}" ` +
+            `no grupo "${chat.name}" (${groupId})`
+          );
         }
         
-        // Registra cooldown
-        setCooldown(senderId, "!apelido");
+        // Registrar cooldown
+        setCooldown(senderId, "!apelido", 10000); // 10 segundos
         
-      } catch (error) {
-        logger.error("❌ Erro ao definir apelido:", error.message);
+      } catch (dbError) {
+        logger.error("❌ Erro no banco ao definir apelido:", dbError.message);
         
         await msg.reply(
-          `❌ Ops! Ocorreu um erro ao definir seu apelido.\n\n` +
-          `💡 Tente novamente em alguns segundos ou contate um admin se o problema persistir.`
+          `❌ **Erro interno do sistema**\n\n` +
+          `🔧 Ocorreu um problema ao salvar seu apelido.\n\n` +
+          `💡 **O que fazer:**\n` +
+          `• Tente novamente em alguns segundos\n` +
+          `• Se persistir, contate um admin\n` +
+          `• Use \`!ping\` para testar conectividade`
         );
       }
       
@@ -134,8 +236,11 @@ module.exports = {
       console.error(error);
       
       await msg.reply(
-        `❌ Ocorreu um erro inesperado. A equipe de desenvolvimento já foi notificada.`
+        `❌ **Erro inesperado**\n\n` +
+        `🤖 O sistema detectou um problema interno.\n` +
+        `👨‍💻 A equipe de desenvolvimento foi notificada automaticamente.\n\n` +
+        `💡 Tente novamente em alguns minutos.`
       );
     }
-  },
+  }
 };

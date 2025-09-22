@@ -1,380 +1,239 @@
 /**
- * Configurações centralizadas dos comandos do bot
- * Define permissões, grupos permitidos e status de cada comando
- * 
- * CONFIGURAÇÃO RESTRITA: Apenas grupo 120363415542889290@g.us
+ * Configuração Centralizada de Comandos - Otimizada
+ * Sistema de permissões granular por grupo com cache inteligente
  * 
  * @author Volleyball Team
- * @version 2.2 - Configuração Restrita
+ * @version 3.0 - Sistema avançado de permissões
  */
 
-const logger = require("../utils/logger");
+const logger = require('../utils/logger');
 
-// ID do grupo autorizado (único grupo que pode usar os comandos)
-const GRUPO_AUTORIZADO = "120363415542889290@g.us";
+// ===== CONFIGURAÇÕES GLOBAIS =====
 
 /**
- * Configurações dos comandos
- * TODOS os comandos estão restritos ao grupo específico
+ * Número master - tem poder absoluto e não pode ser prejudicado
+ * Este número tem acesso total a TODOS os comandos em TODOS os grupos
+ */
+const MASTER_NUMBER = '5519999222004@c.us';
+
+/**
+ * Grupo principal autorizado por padrão
+ * Comandos funcionam aqui por padrão, outros grupos precisam ser explicitamente habilitados
+ */
+const GRUPO_AUTORIZADO = '120363327947888891@g.us'; // Substitua pelo ID real do seu grupo
+
+/**
+ * Configurações específicas de cada comando
+ * Estrutura: comando -> configuração detalhada
  */
 const COMMAND_CONFIGS = {
-  // ========== COMANDOS BÁSICOS ==========
-  "!ping": {
+  // ===== COMANDOS BÁSICOS (LIVRES PARA TODOS) =====
+  '!ping': {
     enabled: true,
     requireAdmin: false,
-    allowedGroups: [GRUPO_AUTORIZADO],
-    description: "Testa se o bot está respondendo",
-    category: "básicos",
-    cooldown: 2
+    allowedGroups: [], // Vazio = permitido em todos os grupos
+    description: "Testa conectividade do bot",
+    category: "basic",
+    cooldown: 1000, // 1 segundo
+    masterOnly: false
   },
-
-  "!dados": {
+  
+  '!dados': {
     enabled: true,
     requireAdmin: false,
-    allowedGroups: [GRUPO_AUTORIZADO],
-    description: "Mostra informações do grupo e usuário",
-    category: "básicos",
-    cooldown: 5
+    allowedGroups: [], // Permitido em todos os grupos
+    description: "Informações do grupo e usuário",
+    category: "basic",
+    cooldown: 2000, // 2 segundos
+    masterOnly: false
   },
-
-  "!hora": {
+  
+  '!ajuda': {
     enabled: true,
     requireAdmin: false,
-    allowedGroups: [GRUPO_AUTORIZADO],
-    description: "Mostra data e hora atual no timezone de São Paulo",
-    category: "utilitários",
-    cooldown: 2,
-    aliases: ["!time", "!agora", "!datetime"]
+    allowedGroups: [],
+    description: "Lista de comandos disponíveis",
+    category: "basic",
+    cooldown: 3000, // 3 segundos
+    masterOnly: false,
+    aliases: ['!help', '!comandos', '!?']
   },
-
-  // ========== SISTEMA DE APELIDOS ==========
-  "!apelido": {
+  
+  // ===== COMANDOS DE USUÁRIO =====
+  '!apelido': {
     enabled: true,
     requireAdmin: false,
-    allowedGroups: [GRUPO_AUTORIZADO],
-    description: "Define seu próprio apelido no grupo",
-    category: "apelidos",
-    cooldown: 10,
+    allowedGroups: [GRUPO_AUTORIZADO], // Apenas no grupo principal
+    description: "Define ou altera seu apelido",
+    category: "user",
+    cooldown: 10000, // 10 segundos
     minArgs: 1,
     maxArgs: 3,
-    aliases: ["!nick", "!nickname"]
+    masterOnly: false
   },
-
-  "!meuapelido": {
+  
+  '!nick': {
     enabled: true,
     requireAdmin: false,
     allowedGroups: [GRUPO_AUTORIZADO],
     description: "Mostra seu apelido atual",
-    category: "apelidos",
-    cooldown: 5,
-    aliases: ["!meunick", "!apelido?"]
+    category: "user",
+    cooldown: 5000, // 5 segundos
+    masterOnly: false
   },
-
-  "!apelidoadmin": {
+  
+  // ===== COMANDOS DE ADMINISTRAÇÃO =====
+  '!status': {
     enabled: true,
     requireAdmin: true,
     allowedGroups: [GRUPO_AUTORIZADO],
-    description: "Admin define apelido de outro usuário",
-    category: "apelidos",
-    minArgs: 2,
-    aliases: ["!setapelido", "!definirapelido"]
-  },
-
-  "!bloquearapelido": {
-    enabled: true,
-    requireAdmin: true,
-    allowedGroups: [GRUPO_AUTORIZADO],
-    description: "Bloqueia usuário de trocar apelido",
-    category: "apelidos",
-    minArgs: 1,
-    aliases: ["!lockapelido", "!bloquearnick"]
-  },
-
-  "!liberarapelido": {
-    enabled: true,
-    requireAdmin: true,
-    allowedGroups: [GRUPO_AUTORIZADO],
-    description: "Libera usuário para trocar apelido",
-    category: "apelidos",
-    minArgs: 1,
-    aliases: ["!desbloquearapelido", "!unlockapelido"]
-  },
-
-  "!listarapelidos": {
-    enabled: true,
-    requireAdmin: true,
-    allowedGroups: [GRUPO_AUTORIZADO],
-    description: "Lista todos os apelidos cadastrados",
-    category: "apelidos",
-    aliases: ["!listapelidos", "!apelidos", "!listnicks"]
-  },
-
-  // ========== ADMINISTRAÇÃO DE ADMINS ==========
-  "!addadm": {
-    enabled: true,
-    requireAdmin: true,
-    allowedGroups: [GRUPO_AUTORIZADO],
-    description: "Adiciona admin ao grupo",
+    description: "Status detalhado do sistema",
     category: "admin",
+    cooldown: 5000,
+    masterOnly: true // Apenas master
+  },
+  
+  '!lista': {
+    enabled: true,
+    requireAdmin: true,
+    allowedGroups: [GRUPO_AUTORIZADO],
+    description: "Lista usuários e apelidos do grupo",
+    category: "admin",
+    cooldown: 5000,
+    masterOnly: false
+  },
+  
+  '!silenciar': {
+    enabled: true,
+    requireAdmin: true,
+    allowedGroups: [GRUPO_AUTORIZADO],
+    description: "Silencia usuário por tempo determinado",
+    category: "moderation",
+    cooldown: 2000,
     minArgs: 1,
-    aliases: ["!addadmin", "!adicionaradm"]
+    maxArgs: 2,
+    masterOnly: false,
+    aliases: ['!mute']
   },
-
-  "!deladm": {
+  
+  '!liberar': {
     enabled: true,
     requireAdmin: true,
     allowedGroups: [GRUPO_AUTORIZADO],
-    description: "Remove admin do grupo",
-    category: "admin",
+    description: "Remove silenciamento de usuário",
+    category: "moderation",
+    cooldown: 2000,
     minArgs: 1,
-    aliases: ["!removeadm", "!remadm"]
+    maxArgs: 1,
+    masterOnly: false,
+    aliases: ['!unmute', '!unsilenciar']
   },
-
-  "!listadm": {
+  
+  '!bloquear': {
     enabled: true,
     requireAdmin: true,
     allowedGroups: [GRUPO_AUTORIZADO],
-    description: "Lista admins do grupo",
-    category: "admin",
-    aliases: ["!listaradm", "!admins", "!listadmins"]
-  },
-
-  "!op": {
-    enabled: true,
-    requireAdmin: true,
-    allowedGroups: [GRUPO_AUTORIZADO],
-    description: "Promove admin a admin do WhatsApp (próprio ou outro)",
-    usage: "!op [telefone]",
-    category: "admin",
-    aliases: ["!promote", "!promover"]
-  },
-
-  "!deop": {
-    enabled: true,
-    requireAdmin: true,
-    allowedGroups: [GRUPO_AUTORIZADO],
-    description: "Remove admin do WhatsApp",
-    category: "admin",
-    aliases: ["!demote", "!rebaixar"]
-  },
-
-  // ========== COMANDOS DE COMUNICAÇÃO ==========
-  "!aviso": {
-    enabled: true,
-    requireAdmin: false,
-    allowedGroups: [GRUPO_AUTORIZADO],
-    description: "Envia aviso marcando todos do grupo",
-    category: "comunicação",
-    cooldown: 60, // 1 minuto de cooldown para evitar spam
+    description: "Bloqueia apelido específico",
+    category: "moderation",
+    cooldown: 3000,
     minArgs: 1,
-    aliases: ["!alerta", "!todos", "!everyone"]
+    masterOnly: false,
+    aliases: ['!lock']
   },
-
-  "!notificar": {
+  
+  '!desbloquear': {
     enabled: true,
     requireAdmin: true,
     allowedGroups: [GRUPO_AUTORIZADO],
-    description: "Convoca todos para partida de volleyball",
-    category: "comunicação",
-    cooldown: 300, // 5 minutos de cooldown para convocações
-    aliases: ["!convocar", "!chamar", "!partida"]
-  },
-
-  // ========== COMANDOS DE MÍDIA ==========
-  "!figurinha": {
-    enabled: true,
-    requireAdmin: false,
-    allowedGroups: [GRUPO_AUTORIZADO],
-    description: "Converte imagem/vídeo em figurinha",
-    category: "mídia",
-    cooldown: 0,
-    aliases: ["!sticker", "!fig"]
-  },
-
-  // ========== ADMINISTRAÇÃO DE GRUPO ==========
-  "!ban": {
-    enabled: true,
-    requireAdmin: true,
-    allowedGroups: [GRUPO_AUTORIZADO],
-    description: "Remove usuário do grupo (com motivo opcional)",
-    category: "admin",
+    description: "Desbloqueia apelido específico",
+    category: "moderation",
+    cooldown: 3000,
     minArgs: 1,
-    aliases: ["!kick", "!remover", "!expulsar"]
+    masterOnly: false,
+    aliases: ['!unlock']
   },
-
-  "!invite": {
+  
+  // ===== COMANDOS MASTER EXCLUSIVOS =====
+  '!restart': {
+    enabled: true,
+    requireAdmin: true,
+    allowedGroups: [], // Master pode usar em qualquer lugar
+    description: "Reinicia o bot",
+    category: "system",
+    cooldown: 0, // Sem cooldown para emergências
+    masterOnly: true,
+    aliases: ['!reboot', '!reiniciar']
+  },
+  
+  '!addadmin': {
+    enabled: true,
+    requireAdmin: true,
+    allowedGroups: [GRUPO_AUTORIZADO],
+    description: "Adiciona administrador ao grupo",
+    category: "system",
+    cooldown: 5000,
+    minArgs: 1,
+    masterOnly: true
+  },
+  
+  '!removeadmin': {
+    enabled: true,
+    requireAdmin: true,
+    allowedGroups: [GRUPO_AUTORIZADO],
+    description: "Remove administrador do grupo",
+    category: "system",
+    cooldown: 5000,
+    minArgs: 1,
+    masterOnly: true
+  },
+  
+  '!limpar': {
+    enabled: true,
+    requireAdmin: true,
+    allowedGroups: [GRUPO_AUTORIZADO],
+    description: "Limpa quantidade específica de mensagens",
+    category: "moderation",
+    cooldown: 10000,
+    minArgs: 1,
+    maxArgs: 1,
+    masterOnly: true
+  },
+  
+  // ===== COMANDOS ESPECIAIS =====
+  '!noturno': {
+    enabled: true,
+    requireAdmin: true,
+    allowedGroups: [GRUPO_AUTORIZADO],
+    description: "Ativa/desativa modo noturno automático",
+    category: "special",
+    cooldown: 5000,
+    masterOnly: false
+  },
+  
+  '!invite': {
     enabled: true,
     requireAdmin: true,
     allowedGroups: [GRUPO_AUTORIZADO],
     description: "Envia convite do grupo para usuário",
     category: "admin",
+    cooldown: 30000, // 30 segundos para evitar spam
     minArgs: 1,
-    aliases: ["!convidar", "!convite"]
-  },
-
-  "!adicionar": {
-    enabled: true,
-    requireAdmin: true,
-    allowedGroups: [GRUPO_AUTORIZADO],
-    description: "Adiciona usuário diretamente ao grupo",
-    category: "admin",
-    minArgs: 1,
-    aliases: ["!adcionar", "!add"]
-  },
-
-  // ========== SISTEMA DE SILENCIAMENTO ==========
-  "!silenciar": {
-    enabled: true,
-    requireAdmin: true,
-    allowedGroups: [GRUPO_AUTORIZADO],
-    description: "Silencia usuário por tempo determinado ou permanentemente",
-    category: "moderação",
-    minArgs: 1,
-    maxArgs: 3,
-    cooldown: 3,
-    aliases: ["!mute", "!calar"]
-  },
-
-  "!falar": {
-    enabled: true,
-    requireAdmin: true,
-    allowedGroups: [GRUPO_AUTORIZADO],
-    description: "Remove silenciamento de usuário específico",
-    category: "moderação",
-    minArgs: 1,
-    aliases: ["!unmute", "!desilenciar"]
-  },
-
-  "!liberar": {
-    enabled: true,
-    requireAdmin: true,
-    allowedGroups: [GRUPO_AUTORIZADO],
-    description: "Remove silenciamento de todos os usuários do grupo",
-    category: "moderação",
-    cooldown: 10, // Cooldown maior por ser comando que afeta muitos usuários
-    aliases: ["!liberartodos", "!unmuteall"]
-  },
-
-  "!silenciados": {
-    enabled: true,
-    requireAdmin: true,
-    allowedGroups: [GRUPO_AUTORIZADO],
-    description: "Lista todos os usuários silenciados no grupo",
-    category: "moderação",
-    cooldown: 5,
-    aliases: ["!muted", "!silenced", "!mutedlist"]
-  },
-
-  // ========== SISTEMA DE PERMISSÕES GRANULARES ==========
-  "!addpermissao": {
-    enabled: true,
-    requireAdmin: true,
-    allowedGroups: [GRUPO_AUTORIZADO],
-    description: "Adiciona permissões específicas para usuário",
-    category: "admin",
-    minArgs: 2,
-    aliases: ["!grantperm", "!addperm"]
-  },
-
-  "!delpermissao": {
-    enabled: true,
-    requireAdmin: true,
-    allowedGroups: [GRUPO_AUTORIZADO],
-    description: "Remove permissões específicas de usuário", 
-    category: "admin",
-    minArgs: 2,
-    aliases: ["!removeperm", "!delperm"]
-  },
-
-  "!listpermissao": {
-    enabled: true,
-    requireAdmin: true,
-    allowedGroups: [GRUPO_AUTORIZADO],
-    description: "Lista todas as permissões de um usuário",
-    category: "admin",
-    minArgs: 1,
-    aliases: ["!listperm", "!permissoes"]
-  },
-
-  "!welcome": {
-    enabled: true,
-    requireAdmin: true,
-    allowedGroups: [],
-    description: "Configura sistema de boas-vindas automático",
-    category: "admin",
-    aliases: ["!boasvindas", "!bemvindo"]
-  },
-
-  // ========== ADMINISTRAÇÃO AVANÇADA ==========
-  "!noturno": {
-    enabled: true,
-    requireAdmin: true,
-    allowedGroups: [GRUPO_AUTORIZADO],
-    description: "Configura modo noturno do grupo (restringe mensagens)",
-    category: "admin",
-    aliases: ["!nightmode", "!modonoturno"]
-  },
-
-  "!testaliases": {
-    enabled: true,
-    requireAdmin: true,
-    allowedGroups: [GRUPO_AUTORIZADO],
-    description: "Lista comandos e aliases disponíveis",
-    category: "admin",
-    aliases: ["!aliases", "!comandos"]
-  },
-
-  "!restart": {
-    enabled: true,
-    requireAdmin: true,
-    allowedGroups: [], // Master pode usar em qualquer lugar
-    description: "Reinicia o bot (apenas Master)",
-    category: "admin",
-    masterOnly: true,
-    aliases: ["!reboot", "!reiniciar"]
-  },
-
-  // ========== UTILITÁRIOS ==========
-  "!help": {
-    enabled: true,
-    requireAdmin: false,
-    allowedGroups: [GRUPO_AUTORIZADO],
-    description: "Mostra lista de comandos disponíveis",
-    category: "utilitários",
-    cooldown: 10
-  },
-
-  "!status": {
-    enabled: true,
-    requireAdmin: false,
-    allowedGroups: [GRUPO_AUTORIZADO],
-    description: "Mostra status do bot e estatísticas",
-    category: "utilitários",
-    cooldown: 15
-  },
-
-  "!audit": {
-    enabled: true,
-    requireAdmin: true,
-    allowedGroups: [GRUPO_AUTORIZADO],
-    description: "Mostra log de auditoria",
-    category: "admin",
-    cooldown: 30
+    masterOnly: false,
+    aliases: ['!convidar', '!convite']
   }
 };
 
-/**
- * Cache de configurações processadas
- */
+// ===== CACHE DE CONFIGURAÇÕES =====
+// Cache em memória para evitar recalcular configurações constantemente
 const configCache = new Map();
 
 /**
- * Obtém configuração de um comando
- * @param {string} commandName Nome do comando
+ * Obtém configuração de um comando com cache inteligente
+ * @param {string} commandName Nome do comando (com ou sem !)
  * @returns {object} Configuração do comando
  */
 function getCommandConfig(commandName) {
-  // Remove ! se presente e converte para lowercase
+  // Normaliza nome do comando - remove ! se presente e converte para lowercase
   const cleanName = commandName.toLowerCase().replace(/^!/, "");
   const fullName = `!${cleanName}`;
   
@@ -404,7 +263,9 @@ function getCommandConfig(commandName) {
       requireAdmin: true,
       allowedGroups: [GRUPO_AUTORIZADO], // Mesmo comandos não listados só funcionam no grupo autorizado
       description: "Comando não configurado",
-      category: "outros"
+      category: "outros",
+      cooldown: 5000,
+      masterOnly: false
     };
     
     logger.warn(`⚠️ Comando sem configuração: ${fullName}, usando padrão restrito`);
@@ -419,7 +280,7 @@ function getCommandConfig(commandName) {
     allowedGroups: [GRUPO_AUTORIZADO], // Padrão: apenas grupo autorizado
     description: "",
     category: "outros",
-    cooldown: 0,
+    cooldown: 3000,
     minArgs: 0,
     maxArgs: Infinity,
     masterOnly: false,
@@ -432,265 +293,351 @@ function getCommandConfig(commandName) {
 }
 
 /**
- * Sincroniza aliases dos comandos carregados com as configurações
- * @param {object} commands Objeto de comandos carregados
- */
-function syncCommandAliases(commands) {
-  logger.info("🔗 Sincronizando aliases dos comandos...");
-  
-  for (const [commandKey, commandObj] of Object.entries(commands)) {
-    // Pula se não é o comando principal (é um alias)
-    if (commandKey !== commandObj.name) continue;
-    
-    const config = COMMAND_CONFIGS[commandObj.name];
-    if (!config) continue;
-    
-    // Se o comando tem aliases definidos, adiciona eles às configurações
-    if (commandObj.aliases && Array.isArray(commandObj.aliases)) {
-      // Mescla aliases do comando com aliases da configuração
-      const allAliases = [...new Set([
-        ...(config.aliases || []),
-        ...commandObj.aliases
-      ])];
-      
-      config.aliases = allAliases;
-      
-      logger.debug(`🔗 Sincronizado ${commandObj.name}: ${allAliases.length} aliases`);
-    }
-  }
-}
-
-/**
- * Verifica se um comando está habilitado (incluindo aliases)
+ * Verifica se comando está habilitado
  * @param {string} commandName Nome do comando
- * @returns {boolean} True se habilitado
+ * @returns {boolean} Se está habilitado
  */
 function isCommandEnabled(commandName) {
   const config = getCommandConfig(commandName);
-  return config.enabled === true;
+  return config.enabled;
 }
 
 /**
- * Verifica se comando é permitido em um grupo
+ * Verifica se comando requer permissões de admin
+ * @param {string} commandName Nome do comando
+ * @returns {boolean} Se requer admin
+ */
+function requiresAdmin(commandName) {
+  const config = getCommandConfig(commandName);
+  return config.requireAdmin;
+}
+
+/**
+ * Verifica se comando é exclusivo do master
+ * @param {string} commandName Nome do comando
+ * @returns {boolean} Se é master only
+ */
+function isMasterOnly(commandName) {
+  const config = getCommandConfig(commandName);
+  return config.masterOnly;
+}
+
+/**
+ * Verifica se comando é permitido no grupo específico
  * @param {string} commandName Nome do comando
  * @param {string} groupId ID do grupo
- * @returns {boolean} True se permitido
+ * @returns {boolean} Se é permitido no grupo
  */
-function isCommandAllowedInGroup(commandName, groupId) {
+function isAllowedInGroup(commandName, groupId) {
   const config = getCommandConfig(commandName);
   
-  // Se não há restrições de grupo (array vazio), comando não é permitido (política restritiva)
+  // Se allowedGroups está vazio, é permitido em todos os grupos
   if (!config.allowedGroups || config.allowedGroups.length === 0) {
-    // Exceção: comandos master-only podem funcionar em qualquer lugar
-    if (config.masterOnly) {
-      return true;
-    }
-    return false;
+    return true;
   }
   
-  // Verifica se o grupo está na lista permitida
+  // Verifica se o grupo está na lista de permitidos
   return config.allowedGroups.includes(groupId);
 }
 
 /**
- * Lista todos os comandos disponíveis
- * @param {boolean} adminOnly Se deve mostrar apenas comandos de admin
- * @param {string} category Filtrar por categoria
- * @returns {Array} Lista de comandos
+ * Obtém cooldown do comando
+ * @param {string} commandName Nome do comando
+ * @returns {number} Cooldown em ms
  */
-function listCommands(adminOnly = false, category = null) {
-  const commands = [];
-  
-  for (const [name, config] of Object.entries(COMMAND_CONFIGS)) {
-    if (!config.enabled) continue;
-    
-    if (adminOnly && !config.requireAdmin) continue;
-    
-    if (category && config.category !== category) continue;
-    
-    commands.push({
-      name,
-      ...config
-    });
-  }
-  
-  return commands.sort((a, b) => a.category.localeCompare(b.category));
+function getCommandCooldown(commandName) {
+  const config = getCommandConfig(commandName);
+  return config.cooldown || 3000;
 }
 
 /**
- * Obtém categorias disponíveis
- * @returns {Array} Lista de categorias
- */
-function getCategories() {
-  const categories = new Set();
-  
-  for (const config of Object.values(COMMAND_CONFIGS)) {
-    if (config.enabled) {
-      categories.add(config.category);
-    }
-  }
-  
-  return Array.from(categories).sort();
-}
-
-/**
- * Valida argumentos de um comando
+ * Valida argumentos do comando
  * @param {string} commandName Nome do comando
  * @param {Array} args Argumentos fornecidos
  * @returns {object} Resultado da validação
  */
 function validateCommandArgs(commandName, args) {
   const config = getCommandConfig(commandName);
+  const argCount = args.length;
   
   const result = {
     valid: true,
-    errors: []
+    error: null,
+    config
   };
   
-  if (args.length < config.minArgs) {
+  // Verifica argumentos mínimos
+  if (config.minArgs && argCount < config.minArgs) {
     result.valid = false;
-    result.errors.push(`Mínimo ${config.minArgs} argumento(s) necessário(s)`);
+    result.error = `Comando requer pelo menos ${config.minArgs} argumento(s). Fornecidos: ${argCount}`;
+    return result;
   }
   
-  if (args.length > config.maxArgs) {
+  // Verifica argumentos máximos
+  if (config.maxArgs && argCount > config.maxArgs) {
     result.valid = false;
-    result.errors.push(`Máximo ${config.maxArgs} argumento(s) permitido(s)`);
+    result.error = `Comando aceita no máximo ${config.maxArgs} argumento(s). Fornecidos: ${argCount}`;
+    return result;
   }
   
   return result;
 }
 
 /**
- * Sistema de cooldown para comandos
- */
-const cooldowns = new Map();
-
-/**
- * Verifica cooldown de um comando
- * @param {string} userId ID do usuário
+ * Verificação completa de permissões para um comando
  * @param {string} commandName Nome do comando
- * @returns {number} Segundos restantes (0 se não há cooldown)
- */
-function checkCooldown(userId, commandName) {
-  const config = getCommandConfig(commandName);
-  
-  if (!config.cooldown || config.cooldown <= 0) {
-    return 0;
-  }
-  
-  const key = `${userId}:${commandName}`;
-  const lastUsed = cooldowns.get(key) || 0;
-  const now = Date.now();
-  const timeLeft = Math.max(0, (lastUsed + config.cooldown * 1000) - now);
-  
-  return Math.ceil(timeLeft / 1000);
-}
-
-/**
- * Registra uso de comando para cooldown
  * @param {string} userId ID do usuário
- * @param {string} commandName Nome do comando
+ * @param {string} groupId ID do grupo (opcional)
+ * @param {boolean} isUserAdmin Se o usuário é admin
+ * @returns {object} Resultado da verificação
  */
-function setCooldown(userId, commandName) {
-  const config = getCommandConfig(commandName);
+function checkCommandPermissions(commandName, userId, groupId = null, isUserAdmin = false) {
+  const result = {
+    allowed: false,
+    reason: null,
+    config: null
+  };
   
-  if (config.cooldown && config.cooldown > 0) {
-    const key = `${userId}:${commandName}`;
-    cooldowns.set(key, Date.now());
+  try {
+    const config = getCommandConfig(commandName);
+    result.config = config;
     
-    // Remove cooldown expirado após 2x o tempo
-    setTimeout(() => {
-      cooldowns.delete(key);
-    }, config.cooldown * 2000);
-  }
-}
-
-/**
- * Lista comandos por categoria para facilitar navegação
- * @returns {object} Comandos agrupados por categoria
- */
-function getCommandsByCategory() {
-  const categories = {};
-  
-  for (const [name, config] of Object.entries(COMMAND_CONFIGS)) {
-    if (!config.enabled) continue;
-    
-    if (!categories[config.category]) {
-      categories[config.category] = [];
+    // ===== VERIFICAÇÃO 1: COMANDO HABILITADO =====
+    if (!config.enabled) {
+      result.reason = "Comando desabilitado";
+      return result;
     }
     
-    categories[config.category].push({
-      name,
-      description: config.description,
-      requireAdmin: config.requireAdmin,
-      aliases: config.aliases || []
-    });
+    // ===== VERIFICAÇÃO 2: MASTER TEM PODER ABSOLUTO =====
+    if (userId === MASTER_NUMBER) {
+      result.allowed = true;
+      return result;
+    }
+    
+    // ===== VERIFICAÇÃO 3: COMANDO MASTER ONLY =====
+    if (config.masterOnly) {
+      result.reason = "Comando exclusivo do master";
+      return result;
+    }
+    
+    // ===== VERIFICAÇÃO 4: GRUPO PERMITIDO =====
+    if (groupId && !isAllowedInGroup(commandName, groupId)) {
+      result.reason = "Comando não permitido neste grupo";
+      return result;
+    }
+    
+    // ===== VERIFICAÇÃO 5: PERMISSÃO DE ADMIN =====
+    if (config.requireAdmin && !isUserAdmin) {
+      result.reason = "Comando requer permissões de administrador";
+      return result;
+    }
+    
+    // ===== TODAS AS VERIFICAÇÕES PASSARAM =====
+    result.allowed = true;
+    return result;
+    
+  } catch (error) {
+    logger.error('❌ Erro na verificação de permissões:', error.message);
+    result.reason = "Erro interno na verificação de permissões";
+    return result;
   }
-  
-  // Ordena comandos dentro de cada categoria
-  for (const category in categories) {
-    categories[category].sort((a, b) => a.name.localeCompare(b.name));
-  }
-  
-  return categories;
 }
 
 /**
- * Verifica se um comando específico requer confirmação especial
- * (usado para comandos destrutivos como !liberar, !restart, etc.)
- * @param {string} commandName Nome do comando
- * @returns {boolean} True se requer confirmação
+ * Obtém lista de comandos disponíveis para um usuário
+ * @param {string} userId ID do usuário
+ * @param {string} groupId ID do grupo (opcional)
+ * @param {boolean} isUserAdmin Se o usuário é admin
+ * @returns {Array} Lista de comandos disponíveis
  */
-function requiresConfirmation(commandName) {
-  const destructiveCommands = [
-    "!liberar",    // Libera todos os silenciados
-    "!restart",    // Reinicia o bot
-    "!ban",        // Remove usuário do grupo
-    "!deladm"      // Remove admin
-  ];
+function getAvailableCommands(userId, groupId = null, isUserAdmin = false) {
+  const availableCommands = [];
   
-  return destructiveCommands.includes(commandName.toLowerCase());
+  for (const [commandName, config] of Object.entries(COMMAND_CONFIGS)) {
+    const permission = checkCommandPermissions(commandName, userId, groupId, isUserAdmin);
+    
+    if (permission.allowed) {
+      availableCommands.push({
+        name: commandName,
+        description: config.description,
+        category: config.category,
+        usage: config.usage || commandName,
+        aliases: config.aliases || []
+      });
+    }
+  }
+  
+  // Ordenar por categoria e depois por nome
+  return availableCommands.sort((a, b) => {
+    if (a.category !== b.category) {
+      return a.category.localeCompare(b.category);
+    }
+    return a.name.localeCompare(b.name);
+  });
 }
 
 /**
- * Obtém informações sobre o grupo autorizado
- * @returns {object} Informações do grupo autorizado
+ * Limpa cache de configurações
+ * Útil para recarregar configurações em runtime
  */
-function getAuthorizedGroupInfo() {
-  return {
-    id: GRUPO_AUTORIZADO,
-    name: "Amigos do Vôlei",
-    description: "Grupo principal autorizado a usar todos os comandos do bot",
-    isRestricted: true
+function clearConfigCache() {
+  configCache.clear();
+  logger.info('🧹 Cache de configurações limpo');
+}
+
+/**
+ * Obtém estatísticas das configurações
+ * @returns {object} Estatísticas
+ */
+function getConfigStats() {
+  const stats = {
+    totalCommands: Object.keys(COMMAND_CONFIGS).length,
+    enabledCommands: 0,
+    adminCommands: 0,
+    masterOnlyCommands: 0,
+    freeCommands: 0,
+    categoriesCount: {},
+    cacheSize: configCache.size
   };
+  
+  for (const config of Object.values(COMMAND_CONFIGS)) {
+    if (config.enabled) stats.enabledCommands++;
+    if (config.requireAdmin) stats.adminCommands++;
+    if (config.masterOnly) stats.masterOnlyCommands++;
+    if (!config.requireAdmin && !config.masterOnly) stats.freeCommands++;
+    
+    // Contar categorias
+    const category = config.category || 'outros';
+    stats.categoriesCount[category] = (stats.categoriesCount[category] || 0) + 1;
+  }
+  
+  return stats;
 }
 
 /**
- * Verifica se um grupo é o grupo autorizado
- * @param {string} groupId ID do grupo
- * @returns {boolean} True se é o grupo autorizado
+ * Sincroniza aliases dos comandos carregados com as configurações
+ * @param {object} commands Objeto de comandos carregados
  */
-function isAuthorizedGroup(groupId) {
-  return groupId === GRUPO_AUTORIZADO;
+function syncCommandAliases(commands) {
+  logger.info("🔗 Sincronizando aliases dos comandos...");
+  
+  let aliasCount = 0;
+  
+  for (const [commandName, config] of Object.entries(COMMAND_CONFIGS)) {
+    if (config.aliases && Array.isArray(config.aliases)) {
+      const mainCommand = commands[commandName];
+      
+      if (mainCommand) {
+        // Adicionar aliases ao objeto de comandos
+        for (const alias of config.aliases) {
+          if (!commands[alias]) {
+            commands[alias] = mainCommand;
+            aliasCount++;
+            logger.debug(`🔗 Alias adicionado: ${alias} -> ${commandName}`);
+          }
+        }
+      }
+    }
+  }
+  
+  logger.success(`✅ ${aliasCount} aliases sincronizados`);
 }
 
-// Log da configuração restritiva na inicialização
-logger.info(`🔒 Configuração RESTRITIVA ativada - Apenas grupo autorizado: ${GRUPO_AUTORIZADO}`);
+/**
+ * Valida toda a configuração na inicialização
+ * @returns {object} Resultado da validação
+ */
+function validateAllConfigs() {
+  const validation = {
+    valid: true,
+    errors: [],
+    warnings: []
+  };
+  
+  try {
+    // Verificar se MASTER_NUMBER está configurado
+    if (!MASTER_NUMBER || MASTER_NUMBER === '') {
+      validation.errors.push('MASTER_NUMBER não configurado');
+      validation.valid = false;
+    }
+    
+    // Verificar se GRUPO_AUTORIZADO está configurado
+    if (!GRUPO_AUTORIZADO || GRUPO_AUTORIZADO === '') {
+      validation.warnings.push('GRUPO_AUTORIZADO não configurado - alguns comandos podem não funcionar');
+    }
+    
+    // Verificar configurações de cada comando
+    for (const [commandName, config] of Object.entries(COMMAND_CONFIGS)) {
+      // Verificar propriedades obrigatórias
+      if (typeof config.enabled !== 'boolean') {
+        validation.errors.push(`${commandName}: propriedade 'enabled' deve ser boolean`);
+        validation.valid = false;
+      }
+      
+      if (typeof config.requireAdmin !== 'boolean') {
+        validation.errors.push(`${commandName}: propriedade 'requireAdmin' deve ser boolean`);
+        validation.valid = false;
+      }
+      
+      // Verificar cooldown
+      if (config.cooldown && (typeof config.cooldown !== 'number' || config.cooldown < 0)) {
+        validation.warnings.push(`${commandName}: cooldown deve ser número >= 0`);
+      }
+      
+      // Verificar aliases
+      if (config.aliases && !Array.isArray(config.aliases)) {
+        validation.warnings.push(`${commandName}: aliases deve ser array`);
+      }
+    }
+    
+    logger.info(`✅ Validação de configurações: ${validation.valid ? 'APROVADA' : 'REPROVADA'}`);
+    
+    if (validation.warnings.length > 0) {
+      logger.warn(`⚠️ ${validation.warnings.length} avisos encontrados`);
+    }
+    
+    if (validation.errors.length > 0) {
+      logger.error(`❌ ${validation.errors.length} erros encontrados`);
+    }
+    
+  } catch (error) {
+    validation.valid = false;
+    validation.errors.push(`Erro durante validação: ${error.message}`);
+  }
+  
+  return validation;
+}
 
+// ===== VALIDAÇÃO NA INICIALIZAÇÃO =====
+const validationResult = validateAllConfigs();
+if (!validationResult.valid) {
+  logger.error('❌ Configurações inválidas detectadas!');
+  for (const error of validationResult.errors) {
+    logger.error(`  • ${error}`);
+  }
+}
+
+// ===== EXPORTAÇÕES =====
 module.exports = {
+  // Constantes
+  MASTER_NUMBER,
+  GRUPO_AUTORIZADO,
+  COMMAND_CONFIGS,
+  
+  // Funções principais
   getCommandConfig,
   isCommandEnabled,
-  isCommandAllowedInGroup,
-  listCommands,
-  getCategories,
+  requiresAdmin,
+  isMasterOnly,
+  isAllowedInGroup,
+  getCommandCooldown,
   validateCommandArgs,
-  checkCooldown,
-  setCooldown,
+  checkCommandPermissions,
+  
+  // Funções utilitárias
+  getAvailableCommands,
+  clearConfigCache,
+  getConfigStats,
   syncCommandAliases,
-  getCommandsByCategory,
-  requiresConfirmation,
-  getAuthorizedGroupInfo,
-  isAuthorizedGroup,
-  COMMAND_CONFIGS,
-  GRUPO_AUTORIZADO
+  validateAllConfigs
 };

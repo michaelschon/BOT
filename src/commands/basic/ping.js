@@ -1,64 +1,47 @@
+// ===== src/commands/basic/ping.js =====
 /**
- * Comando básico de teste
- * Verifica se o bot está respondendo
+ * Comando !ping - Ultra otimizado
+ * Resposta mais rápida possível para teste de conectividade
  * 
  * @author Volleyball Team
+ * @version 3.0 - Máxima performance
  */
-
-const { checkCooldown, setCooldown } = require("../../config/commands");
-const { getSenderId } = require("../../config/auth");
 
 module.exports = {
   name: "!ping",
-  aliases: ["!pong"],
-  description: "Testa se o bot está funcionando",
+  aliases: ["!p"],
+  description: "Testa conectividade do bot - resposta instantânea",
   usage: "!ping",
-  category: "básicos",
+  category: "basic",
   requireAdmin: false,
-
+  
   /**
-   * Executa o comando ping
-   * @param {Client} client Cliente do WhatsApp
+   * Execução ultra-otimizada do ping
+   * @param {Client} client Cliente do WhatsApp  
    * @param {Message} msg Mensagem recebida
-   * @param {Array} args Argumentos do comando
+   * @param {Array} args Argumentos (não usado)
    * @param {string} senderId ID de quem enviou
    */
   async execute(client, msg, args, senderId) {
+    // Timestamp de início para medir latência
+    const startTime = process.hrtime.bigint();
+    
     try {
-      // Verifica cooldown
-      const cooldownLeft = checkCooldown(senderId, "!ping");
-      if (cooldownLeft > 0) {
-        await msg.reply(`⏰ Aguarde ${cooldownLeft}s antes de usar este comando novamente.`);
-        return;
+      // Resposta direta e imediata - sem consultas ao banco
+      await msg.reply("🏐 Pong!");
+      
+      // Calcular latência real
+      const endTime = process.hrtime.bigint();
+      const latency = Number(endTime - startTime) / 1000000; // ms
+      
+      // Log apenas se latência alta (debug)
+      if (latency > 1000) {
+        console.log(`⚠️ Ping com alta latência: ${latency.toFixed(2)}ms`);
       }
-
-      // Calcula tempo de resposta
-      const startTime = Date.now();
       
-      // Envia resposta
-      await msg.reply("🏓 Pong! Bot funcionando perfeitamente!");
-      
-      const responseTime = Date.now() - startTime;
-      
-      // Envia informações adicionais se solicitado
-      if (args.includes("--info") || args.includes("-i")) {
-        const info = `
-📊 *Informações do Ping:*
-• Tempo de resposta: ${responseTime}ms
-• Servidor: Online ✅
-• Hora atual: ${new Date().toLocaleString('pt-BR')}
-• Usuário: ${senderId}
-        `.trim();
-        
-        await msg.reply(info);
-      }
-
-      // Registra cooldown
-      setCooldown(senderId, "!ping");
-
     } catch (error) {
-      console.error("Erro no comando ping:", error);
-      await msg.reply("❌ Erro interno no comando ping.");
+      // Falback simples se der erro
+      console.error('❌ Erro no ping:', error.message);
     }
   }
 };

@@ -1,4 +1,52 @@
 /**
+ * Setup Fresh Database - Configuração Limpa do Banco
+ * Remove banco antigo e cria novo com estrutura otimizada
+ * 
+ * @author Volleyball Team
+ * @version 1.0 - Setup completo e limpo
+ */
+
+const fs = require('fs');
+const path = require('path');
+
+console.log('🗄️ SETUP LIMPO DO BANCO DE DADOS');
+console.log('=================================\n');
+
+// ===== CAMINHOS =====
+const projectRoot = __dirname;
+const dataDir = path.join(projectRoot, 'data');
+const dbPath = path.join(dataDir, 'volleyball.db');
+const authDir = path.join(projectRoot, '.wwebjs_auth');
+
+console.log('📁 Verificando estrutura de diretórios...');
+console.log(`   • Projeto: ${projectRoot}`);
+console.log(`   • Dados: ${dataDir}`);
+console.log(`   • Banco: ${dbPath}`);
+
+// ===== LIMPEZA COMPLETA =====
+console.log('\n🧹 Removendo dados antigos...');
+
+// Remover banco de dados antigo
+if (fs.existsSync(dbPath)) {
+  fs.unlinkSync(dbPath);
+  console.log('✅ Banco de dados antigo removido');
+} else {
+  console.log('ℹ️ Nenhum banco antigo encontrado');
+}
+
+// Remover diretório de dados se vazio
+if (fs.existsSync(dataDir)) {
+  const files = fs.readdirSync(dataDir);
+  if (files.length === 0) {
+    fs.rmdirSync(dataDir);
+    console.log('✅ Diretório de dados removido');
+  }
+}
+
+// ===== CRIAR db.js CORRIGIDO =====
+console.log('\n📝 Criando arquivo db.js otimizado...');
+
+const dbContent = `/**
  * Database Core - SQLite3 Otimizado para Alta Performance
  * Sistema de banco de dados do bot de volleyball - VERSÃO LIMPA
  * 
@@ -54,7 +102,7 @@ logger.info('🔄 Criando estrutura do banco...');
 
 try {
   // ========== TABELA DE USUÁRIOS ==========
-  db.exec(`
+  db.exec(\`
     CREATE TABLE IF NOT EXISTS usuarios (
       id TEXT PRIMARY KEY,                    -- ID do WhatsApp (ex: 5519999999999@c.us)
       name TEXT,                              -- Nome atual do usuário
@@ -62,10 +110,10 @@ try {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
-  `);
+  \`);
   
   // ========== TABELA DE GRUPOS ==========
-  db.exec(`
+  db.exec(\`
     CREATE TABLE IF NOT EXISTS grupos (
       id TEXT PRIMARY KEY,                    -- ID do grupo (ex: 123456789@g.us)
       name TEXT NOT NULL,                     -- Nome do grupo
@@ -73,10 +121,10 @@ try {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
-  `);
+  \`);
   
   // ========== TABELA DE ADMINISTRADORES POR GRUPO ==========
-  db.exec(`
+  db.exec(\`
     CREATE TABLE IF NOT EXISTS admins_grupos (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       grupo_id TEXT NOT NULL,                 -- ID do grupo
@@ -87,10 +135,10 @@ try {
       FOREIGN KEY (grupo_id) REFERENCES grupos(id) ON DELETE CASCADE,
       FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
     )
-  `);
+  \`);
   
   // ========== TABELA DE PERMISSÕES ESPECIAIS ==========
-  db.exec(`
+  db.exec(\`
     CREATE TABLE IF NOT EXISTS permissoes_especiais (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       grupo_id TEXT NOT NULL,                 -- ID do grupo
@@ -104,10 +152,10 @@ try {
       FOREIGN KEY (grupo_id) REFERENCES grupos(id) ON DELETE CASCADE,
       FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
     )
-  `);
+  \`);
   
   // ========== TABELA DE APELIDOS ==========
-  db.exec(`
+  db.exec(\`
     CREATE TABLE IF NOT EXISTS apelidos (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       grupo_id TEXT NOT NULL,                 -- ID do grupo
@@ -121,10 +169,10 @@ try {
       FOREIGN KEY (grupo_id) REFERENCES grupos(id) ON DELETE CASCADE,
       FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
     )
-  `);
+  \`);
   
   // ========== TABELA DE SILENCIAMENTO ==========
-  db.exec(`
+  db.exec(\`
     CREATE TABLE IF NOT EXISTS silenciados (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       grupo_id TEXT NOT NULL,                 -- ID do grupo
@@ -138,10 +186,10 @@ try {
       FOREIGN KEY (grupo_id) REFERENCES grupos(id) ON DELETE CASCADE,
       FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
     )
-  `);
+  \`);
   
   // ========== TABELA DE AUDITORIA ==========
-  db.exec(`
+  db.exec(\`
     CREATE TABLE IF NOT EXISTS auditoria (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       usuario_id TEXT NOT NULL,               -- Quem executou
@@ -154,7 +202,7 @@ try {
       FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
       FOREIGN KEY (grupo_id) REFERENCES grupos(id) ON DELETE CASCADE
     )
-  `);
+  \`);
   
   logger.success('✅ Todas as tabelas criadas com sucesso!');
   
@@ -168,30 +216,30 @@ logger.info('🚀 Criando índices de performance...');
 
 try {
   // Índices críticos para performance máxima
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_usuarios_phone ON usuarios(phone)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_grupos_name ON grupos(name)`);
+  db.exec(\`CREATE INDEX IF NOT EXISTS idx_usuarios_phone ON usuarios(phone)\`);
+  db.exec(\`CREATE INDEX IF NOT EXISTS idx_grupos_name ON grupos(name)\`);
   
   // Índices CRÍTICOS para verificação de admin (mais usado)
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_admins_lookup ON admins_grupos(grupo_id, usuario_id)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_admins_granted_at ON admins_grupos(granted_at)`);
+  db.exec(\`CREATE INDEX IF NOT EXISTS idx_admins_lookup ON admins_grupos(grupo_id, usuario_id)\`);
+  db.exec(\`CREATE INDEX IF NOT EXISTS idx_admins_granted_at ON admins_grupos(granted_at)\`);
   
   // Índices para permissões especiais
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_permissions_lookup ON permissoes_especiais(grupo_id, usuario_id, comando)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_permissions_expires ON permissoes_especiais(expires_at) WHERE expires_at IS NOT NULL`);
+  db.exec(\`CREATE INDEX IF NOT EXISTS idx_permissions_lookup ON permissoes_especiais(grupo_id, usuario_id, comando)\`);
+  db.exec(\`CREATE INDEX IF NOT EXISTS idx_permissions_expires ON permissoes_especiais(expires_at) WHERE expires_at IS NOT NULL\`);
   
   // Índices CRÍTICOS para apelidos (muito usado)
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_apelidos_lookup ON apelidos(grupo_id, usuario_id)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_apelidos_nickname_unique ON apelidos(grupo_id, LOWER(nickname))`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_apelidos_locked ON apelidos(locked) WHERE locked = 1`);
+  db.exec(\`CREATE INDEX IF NOT EXISTS idx_apelidos_lookup ON apelidos(grupo_id, usuario_id)\`);
+  db.exec(\`CREATE INDEX IF NOT EXISTS idx_apelidos_nickname_unique ON apelidos(grupo_id, LOWER(nickname))\`);
+  db.exec(\`CREATE INDEX IF NOT EXISTS idx_apelidos_locked ON apelidos(locked) WHERE locked = 1\`);
   
   // Índices para silenciamento
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_silenciados_active ON silenciados(grupo_id, usuario_id, expires_at)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_silenciados_expires ON silenciados(expires_at) WHERE expires_at IS NOT NULL`);
+  db.exec(\`CREATE INDEX IF NOT EXISTS idx_silenciados_active ON silenciados(grupo_id, usuario_id, expires_at)\`);
+  db.exec(\`CREATE INDEX IF NOT EXISTS idx_silenciados_expires ON silenciados(expires_at) WHERE expires_at IS NOT NULL\`);
   
   // Índices para auditoria
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_auditoria_usuario_comando ON auditoria(usuario_id, comando)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_auditoria_timestamp ON auditoria(timestamp)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_auditoria_grupo_timestamp ON auditoria(grupo_id, timestamp)`);
+  db.exec(\`CREATE INDEX IF NOT EXISTS idx_auditoria_usuario_comando ON auditoria(usuario_id, comando)\`);
+  db.exec(\`CREATE INDEX IF NOT EXISTS idx_auditoria_timestamp ON auditoria(timestamp)\`);
+  db.exec(\`CREATE INDEX IF NOT EXISTS idx_auditoria_grupo_timestamp ON auditoria(grupo_id, timestamp)\`);
   
   logger.success('✅ Índices de performance criados!');
   
@@ -202,35 +250,35 @@ try {
 // ===== PREPARED STATEMENTS OTIMIZADOS =====
 const statements = {
   // ========== USUÁRIOS ==========
-  insertUser: db.prepare(`
+  insertUser: db.prepare(\`
     INSERT OR REPLACE INTO usuarios (id, name, phone, updated_at) 
     VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-  `),
-  getUser: db.prepare(`SELECT * FROM usuarios WHERE id = ? LIMIT 1`),
-  getUserByPhone: db.prepare(`SELECT * FROM usuarios WHERE phone = ? LIMIT 1`),
+  \`),
+  getUser: db.prepare(\`SELECT * FROM usuarios WHERE id = ? LIMIT 1\`),
+  getUserByPhone: db.prepare(\`SELECT * FROM usuarios WHERE phone = ? LIMIT 1\`),
   
   // ========== GRUPOS ==========
-  insertGroup: db.prepare(`
+  insertGroup: db.prepare(\`
     INSERT OR REPLACE INTO grupos (id, name, description, updated_at) 
     VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-  `),
-  getGroup: db.prepare(`SELECT * FROM grupos WHERE id = ? LIMIT 1`),
+  \`),
+  getGroup: db.prepare(\`SELECT * FROM grupos WHERE id = ? LIMIT 1\`),
   
   // ========== ADMINISTRADORES (CRÍTICO - OTIMIZADO) ==========
-  isGroupAdmin: db.prepare(`
+  isGroupAdmin: db.prepare(\`
     SELECT 1 FROM admins_grupos 
     WHERE grupo_id = ? AND usuario_id = ? 
     LIMIT 1
-  `),
-  addGroupAdmin: db.prepare(`
+  \`),
+  addGroupAdmin: db.prepare(\`
     INSERT OR REPLACE INTO admins_grupos (grupo_id, usuario_id, granted_by) 
     VALUES (?, ?, ?)
-  `),
-  removeGroupAdmin: db.prepare(`
+  \`),
+  removeGroupAdmin: db.prepare(\`
     DELETE FROM admins_grupos 
     WHERE grupo_id = ? AND usuario_id = ?
-  `),
-  getAllGroupAdmins: db.prepare(`
+  \`),
+  getAllGroupAdmins: db.prepare(\`
     SELECT ag.usuario_id, ag.granted_by, ag.granted_at, u.name 
     FROM admins_grupos ag
     LEFT JOIN usuarios u ON ag.usuario_id = u.id
@@ -238,51 +286,51 @@ const statements = {
     ORDER BY 
       CASE WHEN ag.usuario_id = ? THEN 0 ELSE 1 END,
       ag.granted_at ASC
-  `),
+  \`),
   
   // ========== PERMISSÕES ESPECIAIS ==========
-  hasSpecialPermission: db.prepare(`
+  hasSpecialPermission: db.prepare(\`
     SELECT permitido FROM permissoes_especiais 
     WHERE grupo_id = ? AND usuario_id = ? AND comando = ? 
     AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
     LIMIT 1
-  `),
-  grantSpecialPermission: db.prepare(`
+  \`),
+  grantSpecialPermission: db.prepare(\`
     INSERT OR REPLACE INTO permissoes_especiais 
     (grupo_id, usuario_id, comando, permitido, granted_by, expires_at) 
     VALUES (?, ?, ?, ?, ?, ?)
-  `),
-  revokeSpecialPermission: db.prepare(`
+  \`),
+  revokeSpecialPermission: db.prepare(\`
     DELETE FROM permissoes_especiais 
     WHERE grupo_id = ? AND usuario_id = ? AND comando = ?
-  `),
+  \`),
   
   // ========== APELIDOS (CRÍTICO - CORRIGIDO) ==========
-  getNickname: db.prepare(`
+  getNickname: db.prepare(\`
     SELECT nickname, locked, created_at, updated_at, set_by 
     FROM apelidos 
     WHERE grupo_id = ? AND usuario_id = ? 
     LIMIT 1
-  `),
-  setNickname: db.prepare(`
+  \`),
+  setNickname: db.prepare(\`
     INSERT OR REPLACE INTO apelidos 
     (grupo_id, usuario_id, nickname, set_by, locked, updated_at) 
     VALUES (?, ?, ?, ?, 
       COALESCE((SELECT locked FROM apelidos WHERE grupo_id = ? AND usuario_id = ?), 0),
       CURRENT_TIMESTAMP
     )
-  `),
-  isNicknameInUse: db.prepare(`
+  \`),
+  isNicknameInUse: db.prepare(\`
     SELECT 1 FROM apelidos 
     WHERE grupo_id = ? AND LOWER(nickname) = LOWER(?) AND usuario_id != ? 
     LIMIT 1
-  `),
-  lockNickname: db.prepare(`
+  \`),
+  lockNickname: db.prepare(\`
     UPDATE apelidos 
     SET locked = ?, updated_at = CURRENT_TIMESTAMP 
     WHERE grupo_id = ? AND usuario_id = ?
-  `),
-  getAllNicknamesInGroup: db.prepare(`
+  \`),
+  getAllNicknamesInGroup: db.prepare(\`
     SELECT a.usuario_id, a.nickname, a.locked, a.created_at, a.updated_at,
            u.name as usuario_nome, set_by.name as definido_por_nome
     FROM apelidos a
@@ -290,59 +338,59 @@ const statements = {
     LEFT JOIN usuarios set_by ON a.set_by = set_by.id
     WHERE a.grupo_id = ?
     ORDER BY LOWER(a.nickname) COLLATE NOCASE
-  `),
+  \`),
   
   // ========== SILENCIAMENTO ==========
-  isSilenced: db.prepare(`
+  isSilenced: db.prepare(\`
     SELECT 1 FROM silenciados 
     WHERE grupo_id = ? AND usuario_id = ? 
     AND (expires_at IS NULL OR expires_at > datetime('now'))
     LIMIT 1
-  `),
-  addSilenced: db.prepare(`
+  \`),
+  addSilenced: db.prepare(\`
     INSERT OR REPLACE INTO silenciados 
     (grupo_id, usuario_id, silenciado_por, motivo, minutos, expires_at) 
     VALUES (?, ?, ?, ?, ?, ?)
-  `),
-  removeSilenced: db.prepare(`
+  \`),
+  removeSilenced: db.prepare(\`
     DELETE FROM silenciados 
     WHERE grupo_id = ? AND usuario_id = ?
-  `),
-  getSilenced: db.prepare(`
+  \`),
+  getSilenced: db.prepare(\`
     SELECT * FROM silenciados 
     WHERE grupo_id = ? AND usuario_id = ? 
     AND (expires_at IS NULL OR expires_at > datetime('now'))
     LIMIT 1
-  `),
-  getAllSilencedInGroup: db.prepare(`
+  \`),
+  getAllSilencedInGroup: db.prepare(\`
     SELECT s.*, u.name as usuario_nome 
     FROM silenciados s 
     LEFT JOIN usuarios u ON s.usuario_id = u.id 
     WHERE s.grupo_id = ? 
     AND (s.expires_at IS NULL OR s.expires_at > datetime('now'))
     ORDER BY s.created_at DESC
-  `),
-  removeAllSilencedInGroup: db.prepare(`DELETE FROM silenciados WHERE grupo_id = ?`),
+  \`),
+  removeAllSilencedInGroup: db.prepare(\`DELETE FROM silenciados WHERE grupo_id = ?\`),
   
   // ========== AUDITORIA ==========
-  logCommand: db.prepare(`
+  logCommand: db.prepare(\`
     INSERT INTO auditoria 
     (usuario_id, grupo_id, comando, argumentos, sucesso, erro) 
     VALUES (?, ?, ?, ?, ?, ?)
-  `),
-  getCommandHistory: db.prepare(`
+  \`),
+  getCommandHistory: db.prepare(\`
     SELECT * FROM auditoria 
     WHERE usuario_id = ? 
     ORDER BY timestamp DESC 
     LIMIT ?
-  `),
+  \`),
   
   // ========== LIMPEZA E MANUTENÇÃO ==========
-  cleanExpiredSilenced: db.prepare(`
+  cleanExpiredSilenced: db.prepare(\`
     DELETE FROM silenciados 
     WHERE expires_at IS NOT NULL AND expires_at <= datetime('now')
-  `),
-  cleanOldAuditoria: db.prepare(`DELETE FROM auditoria WHERE timestamp < ?`)
+  \`),
+  cleanOldAuditoria: db.prepare(\`DELETE FROM auditoria WHERE timestamp < ?\`)
 };
 
 // ===== FUNÇÕES DE DIAGNÓSTICO =====
@@ -353,7 +401,7 @@ function runPerformanceTest() {
   
   try {
     // Teste completo de operações
-    const testId = `test_${Date.now()}@c.us`;
+    const testId = \`test_\${Date.now()}@c.us\`;
     statements.insertUser.run(testId, 'Test User', '5519999999999');
     const user = statements.getUser.get(testId);
     statements.isGroupAdmin.get('test@g.us', testId);
@@ -364,7 +412,7 @@ function runPerformanceTest() {
     const end = process.hrtime.bigint();
     const duration = Number(end - start) / 1000000; // ms
     
-    logger.success(`✅ Performance test: ${duration.toFixed(2)}ms`);
+    logger.success(\`✅ Performance test: \${duration.toFixed(2)}ms\`);
     
     if (duration > 50) {
       logger.warn('⚠️ Performance abaixo do ideal');
@@ -389,7 +437,7 @@ function setupAutomaticCleanup() {
     try {
       const result = statements.cleanExpiredSilenced.run();
       if (result.changes > 0) {
-        logger.info(`🧹 ${result.changes} silenciamentos expirados removidos`);
+        logger.info(\`🧹 \${result.changes} silenciamentos expirados removidos\`);
       }
     } catch (error) {
       logger.error('❌ Erro na limpeza de silenciamentos:', error.message);
@@ -404,7 +452,7 @@ function setupAutomaticCleanup() {
       
       const result = statements.cleanOldAuditoria.run(cutoff.toISOString());
       if (result.changes > 0) {
-        logger.info(`🧹 ${result.changes} registros de auditoria antigos removidos`);
+        logger.info(\`🧹 \${result.changes} registros de auditoria antigos removidos\`);
       }
     } catch (error) {
       logger.error('❌ Erro na limpeza de auditoria:', error.message);
@@ -437,7 +485,7 @@ function getDatabaseStats() {
     
     // Tamanho do banco
     const size = fs.statSync(DB_PATH).size;
-    stats.tamanho = `${(size / 1024 / 1024).toFixed(2)} MB`;
+    stats.tamanho = \`\${(size / 1024 / 1024).toFixed(2)} MB\`;
     
     // Configurações de performance
     const pragmas = {
@@ -475,107 +523,6 @@ try {
   logger.warn('⚠️ Erro na configuração final:', error.message);
 }
 
-// ===== CORREÇÃO TEMPORÁRIA PARA src/core/db.js =====
-/**
- * Adicione esta correção ao final do arquivo src/core/db.js
- * Esta é uma versão corrigida do getNickname que deve funcionar
- */
-
-// Adicione esta função de correção temporária:
-//
-// ===== FUNÇÃO DE CORREÇÃO TEMPORÁRIA =====
-function createFixedGetNickname() {
-  return db.prepare(`
-    SELECT nickname, locked, created_at, updated_at, set_by 
-    FROM apelidos 
-    WHERE grupo_id = ? AND usuario_id = ? 
-    LIMIT 1
-  `);
-}
-
-// Substitua o statements.getNickname existente:
-statements.getNickname = createFixedGetNickname();
-
-// ===== FUNÇÃO PARA RECRIAR TODOS OS STATEMENTS =====
-function recreateStatements() {
-  return {
-    // Usuários
-    insertUser: db.prepare(`INSERT OR REPLACE INTO usuarios (id, name, phone, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)`),
-    getUser: db.prepare(`SELECT * FROM usuarios WHERE id = ? LIMIT 1`),
-    
-    // Grupos
-    insertGroup: db.prepare(`INSERT OR REPLACE INTO grupos (id, name, description, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)`),
-    getGroup: db.prepare(`SELECT * FROM grupos WHERE id = ? LIMIT 1`),
-    
-    // Admins
-    isGroupAdmin: db.prepare(`SELECT 1 FROM admins_grupos WHERE grupo_id = ? AND usuario_id = ? LIMIT 1`),
-    addGroupAdmin: db.prepare(`INSERT OR REPLACE INTO admins_grupos (grupo_id, usuario_id, granted_by) VALUES (?, ?, ?)`),
-    removeGroupAdmin: db.prepare(`DELETE FROM admins_grupos WHERE grupo_id = ? AND usuario_id = ?`),
-    
-    // Apelidos - VERSÃO CORRIGIDA
-    getNickname: db.prepare(`
-      SELECT nickname, locked, created_at, updated_at, set_by 
-      FROM apelidos 
-      WHERE grupo_id = ? AND usuario_id = ? 
-      LIMIT 1
-    `),	 
-    
-    setNickname: db.prepare(`
-      INSERT OR REPLACE INTO apelidos 
-      (grupo_id, usuario_id, nickname, set_by, locked, created_at, updated_at) 
-      VALUES (?, ?, ?, ?, 
-        COALESCE((SELECT locked FROM apelidos WHERE grupo_id = ? AND usuario_id = ?), 0),
-        COALESCE((SELECT created_at FROM apelidos WHERE grupo_id = ? AND usuario_id = ?), CURRENT_TIMESTAMP),
-        CURRENT_TIMESTAMP
-      )
-    `),
-    
-    isNicknameInUse: db.prepare(`
-      SELECT 1 FROM apelidos 
-      WHERE grupo_id = ? AND LOWER(nickname) = LOWER(?) AND usuario_id != ? 
-      LIMIT 1
-    `),
-    
-    lockNickname: db.prepare(`
-      UPDATE apelidos 
-      SET locked = ?, updated_at = CURRENT_TIMESTAMP 
-      WHERE grupo_id = ? AND usuario_id = ?
-    `),
-    
-    // Silenciamento
-    isSilenced: db.prepare(`
-      SELECT 1 FROM silenciados 
-      WHERE grupo_id = ? AND usuario_id = ? 
-      AND (expires_at IS NULL OR expires_at > datetime('now'))
-      LIMIT 1
-    `),
-    
-    addSilenced: db.prepare(`
-      INSERT OR REPLACE INTO silenciados 
-      (grupo_id, usuario_id, silenciado_por, motivo, minutos, expires_at) 
-      VALUES (?, ?, ?, ?, ?, ?)
-    `),
-    
-    removeSilenced: db.prepare(`DELETE FROM silenciados WHERE grupo_id = ? AND usuario_id = ?`),
-    
-    // Auditoria
-    logCommand: db.prepare(`
-      INSERT INTO auditoria 
-      (usuario_id, grupo_id, comando, argumentos, sucesso, erro) 
-      VALUES (?, ?, ?, ?, ?, ?)
-    `),
-    
-    // Limpeza
-    cleanExpiredSilenced: db.prepare(`
-      DELETE FROM silenciados 
-      WHERE expires_at IS NOT NULL AND expires_at <= datetime('now')
-    `),
-    
-    cleanOldAuditoria: db.prepare(`DELETE FROM auditoria WHERE timestamp < ?`)
-  };
-}
-
-
 // ===== EXPORTAÇÕES =====
 module.exports = {
   db,
@@ -583,4 +530,78 @@ module.exports = {
   runPerformanceTest,
   setupAutomaticCleanup,
   getDatabaseStats
-};
+};`;
+
+// Escrever arquivo db.js
+const dbFilePath = path.join(projectRoot, 'src/core/db.js');
+fs.writeFileSync(dbFilePath, dbContent);
+console.log('✅ Arquivo db.js otimizado criado');
+
+// ===== INSERIR DADOS INICIAIS =====
+console.log('\n📊 Configurando dados iniciais...');
+
+try {
+  // Requerir o novo db.js para inserir dados
+  delete require.cache[require.resolve(dbFilePath)];
+  const { statements } = require(dbFilePath);
+  
+  // Inserir usuário master
+  const masterNumber = '5519999222004@c.us';
+  statements.insertUser.run(masterNumber, 'Master Admin', '5519999222004');
+  console.log('✅ Usuário master criado');
+  
+  // Inserir grupo padrão se especificado
+  const grupoAutorizado = '120363327947888891@g.us'; // Atualize com seu grupo real
+  statements.insertGroup.run(grupoAutorizado, 'Volleyball Team', 'Grupo oficial de volleyball');
+  console.log('✅ Grupo padrão criado');
+  
+  // Adicionar master como admin do grupo
+  statements.addGroupAdmin.run(grupoAutorizado, masterNumber, 'SYSTEM');
+  console.log('✅ Master definido como admin do grupo');
+  
+} catch (error) {
+  console.warn('⚠️ Erro ao inserir dados iniciais:', error.message);
+  console.log('ℹ️ Dados iniciais serão criados quando o bot for executado');
+}
+
+// ===== VERIFICAR ESTRUTURA FINAL =====
+console.log('\n🔍 Verificando estrutura final...');
+
+try {
+  const { getDatabaseStats } = require(dbFilePath);
+  const stats = getDatabaseStats();
+  
+  if (stats) {
+    console.log('✅ Banco funcionando corretamente');
+    console.log(`   • Usuários: ${stats.usuarios}`);
+    console.log(`   • Grupos: ${stats.grupos}`);
+    console.log(`   • Admins: ${stats.admins}`);
+    console.log(`   • Tamanho: ${stats.tamanho}`);
+    console.log(`   • Modo: ${stats.config.journal_mode}`);
+  }
+  
+} catch (error) {
+  console.error('❌ Erro na verificação:', error.message);
+}
+
+// ===== MENSAGEM FINAL =====
+console.log('\n🎉 SETUP CONCLUÍDO COM SUCESSO!');
+console.log('================================');
+console.log('✅ Banco de dados limpo criado');
+console.log('✅ Estrutura otimizada implementada');
+console.log('✅ Índices de performance criados');
+console.log('✅ Configurações de alta velocidade aplicadas');
+console.log('✅ Sistema de limpeza automática configurado');
+console.log('\n🚀 Agora você pode executar o bot com:');
+console.log('   npm start');
+console.log('   ou');
+console.log('   node index.js');
+console.log('\n🏐 Bot pronto para administrar o grupo de volleyball!');
+
+console.log('\n📋 PRÓXIMOS PASSOS:');
+console.log('==================');
+console.log('1. Atualize o ID do grupo em src/config/commands.js');
+console.log('2. Execute: node index.js');
+console.log('3. Escaneie o QR Code no WhatsApp');
+console.log('4. Teste com: !ping');
+console.log('\n💡 Comandos disponíveis: !ping, !dados, !ajuda');

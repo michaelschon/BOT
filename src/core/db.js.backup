@@ -1,0 +1,572 @@
+/**
+ * Database Core - SQLite3 Otimizado para Alta Performance
+ * Sistema de banco de dados do bot de volleyball com configurações de performance críticas
+ * 
+ * @author Volleyball Team
+ * @version 3.0 - Completamente otimizado e moderno
+ */
+
+const Database = require('better-sqlite3');
+const path = require('path');
+const fs = require('fs');
+const logger = require('../utils/logger');
+
+// ===== CONFIGURAÇÃO DE CAMINHOS =====
+const DATA_DIR = path.join(__dirname, '../../data');
+const DB_PATH = path.join(DATA_DIR, 'volleyball.db');
+
+// Garantir que o diretório existe
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  logger.info('📁 Diretório de dados criado:', DATA_DIR);
+}
+
+// ===== INICIALIZAÇÃO DO BANCO =====
+logger.info('🗄️ Inicializando banco SQLite...');
+const db = new Database(DB_PATH);
+
+// ===== CONFIGURAÇÕES CRÍTICAS DE PERFORMANCE =====
+// Estas configurações são ESSENCIAIS para velocidade
+try {
+  logger.info('⚡ Aplicando configurações de alta performance...');
+  
+  // Write-Ahead Logging - CRÍTICO para performance em produção
+  db.pragma('journal_mode = WAL');
+  
+  // Configurações de sincronização otimizadas
+  db.pragma('synchronous = NORMAL');       // Reduz sincronizações de disco
+  db.pragma('cache_size = -64000');        // Cache de 64MB em memória
+  db.pragma('temp_store = MEMORY');        // Tabelas temporárias em RAM
+  db.pragma('mmap_size = 268435456');      // Memory-mapped I/O de 256MB
+  db.pragma('page_size = 4096');           // Tamanho de página otimizado
+  
+  // Configurações adicionais de performance
+  db.pragma('foreign_keys = ON');          // Integridade referencial
+  db.pragma('auto_vacuum = INCREMENTAL');  // Vacuum automático incremental
+  db.pragma('wal_autocheckpoint = 1000');  // Checkpoint automático
+  
+  logger.success('✅ Configurações de performance aplicadas!');
+  
+} catch (error) {
+  logger.error('❌ Erro ao aplicar configurações:', error.message);
+  throw error;
+}
+
+// ===== MIGRATIONS E ESTRUTURA DO BANCO =====
+
+/**
+ * Executa as migrations do banco de dados
+ * Cria todas as tabelas necessárias com estrutura otimizada
+ */
+function runMigrations() {
+  logger.info('🔄 Executando migrations...');
+  
+  try {
+    // ========== TABELA DE USUÁRIOS ==========
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS usuarios (
+        id TEXT PRIMARY KEY,                    -- ID do WhatsApp (ex: 5519999999999@c.us)
+        name TEXT,                              -- Nome atual do usuário
+        phone TEXT,                             -- Número do telefone
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // ========== TABELA DE GRUPOS ==========
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS grupos (
+        id TEXT PRIMARY KEY,                    -- ID do grupo (ex: 123456789@g.us)
+        name TEXT NOT NULL,                     -- Nome do grupo
+        description TEXT,                       -- Descrição do grupo
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // ========== TABELA DE ADMINISTRADORES POR GRUPO ==========
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS admins_grupos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        grupo_id TEXT NOT NULL,                 -- ID do grupo
+        usuario_id TEXT NOT NULL,               -- ID do usuário admin
+        granted_by TEXT,                        -- Quem concedeu a permissão
+        granted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(grupo_id, usuario_id),           -- Evita duplicatas
+        FOREIGN KEY (grupo_id) REFERENCES grupos(id) ON DELETE CASCADE,
+        FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+      )
+    `);
+    
+    // ========== TABELA DE PERMISSÕES ESPECIAIS ==========
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS permissoes_especiais (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        grupo_id TEXT NOT NULL,                 -- ID do grupo
+        usuario_id TEXT NOT NULL,               -- ID do usuário
+        comando TEXT NOT NULL,                  -- Comando específico (ex: !kick)
+        permitido BOOLEAN DEFAULT 1,           -- 1 = permitido, 0 = negado
+        granted_by TEXT,                        -- Quem concedeu
+        granted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        expires_at DATETIME,                    -- Data de expiração (opcional)
+        UNIQUE(grupo_id, usuario_id, comando),  -- Uma permissão por comando por usuário
+        FOREIGN KEY (grupo_id) REFERENCES grupos(id) ON DELETE CASCADE,
+        FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+      )
+    `);
+    
+    // ========== TABELA DE APELIDOS ==========
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS apelidos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        grupo_id TEXT NOT NULL,                 -- ID do grupo
+        usuario_id TEXT NOT NULL,               -- ID do usuário
+        nickname TEXT NOT NULL,                 -- Apelido do usuário
+        set_by TEXT,                            -- Quem definiu o apelido
+        locked BOOLEAN DEFAULT 0,              -- Se está bloqueado (1) ou não (0)
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(grupo_id, usuario_id),           -- Um apelido por usuário por grupo
+        FOREIGN KEY (grupo_id) REFERENCES grupos(id) ON DELETE CASCADE,
+        FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+      )
+    `);
+    
+    // ========== TABELA DE SILENCIAMENTO ==========
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS silenciados (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        grupo_id TEXT NOT NULL,                 -- ID do grupo
+        usuario_id TEXT NOT NULL,               -- ID do usuário silenciado
+        silenciado_por TEXT,                    -- Quem aplicou o silenciamento
+        motivo TEXT,                            -- Motivo do silenciamento
+        minutos INTEGER,                        -- Duração em minutos (NULL = permanente)
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        expires_at DATETIME,                    -- Data/hora de expiração
+        UNIQUE(grupo_id, usuario_id),           -- Um silenciamento por usuário por grupo
+        FOREIGN KEY (grupo_id) REFERENCES grupos(id) ON DELETE CASCADE,
+        FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+      )
+    `);
+    
+    // ========== TABELA DE AUDITORIA ==========
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS auditoria (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        usuario_id TEXT NOT NULL,               -- Quem executou
+        grupo_id TEXT,                          -- Em que grupo (NULL = privado)
+        comando TEXT NOT NULL,                  -- Comando executado
+        argumentos TEXT,                        -- Argumentos do comando
+        sucesso BOOLEAN DEFAULT 1,             -- Se foi executado com sucesso
+        erro TEXT,                              -- Mensagem de erro (se houver)
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+        FOREIGN KEY (grupo_id) REFERENCES grupos(id) ON DELETE CASCADE
+      )
+    `);
+    
+    logger.success('✅ Todas as tabelas criadas/verificadas com sucesso!');
+    
+  } catch (error) {
+    logger.error('❌ Erro durante migrations:', error.message);
+    throw error;
+  }
+}
+
+/**
+ * Cria índices otimizados para performance
+ * Estes índices são CRÍTICOS para velocidade das consultas
+ */
+function createOptimizedIndexes() {
+  logger.info('🚀 Criando índices de performance...');
+  
+  try {
+    // ===== ÍNDICES PARA USUÁRIOS =====
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_usuarios_phone ON usuarios(phone)`);
+    
+    // ===== ÍNDICES PARA GRUPOS =====
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_grupos_name ON grupos(name)`);
+    
+    // ===== ÍNDICES CRÍTICOS PARA ADMINS =====
+    // Este é o mais importante - usado em TODAS as verificações de permissão
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_admins_lookup 
+             ON admins_grupos(grupo_id, usuario_id)`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_admins_granted_at 
+             ON admins_grupos(granted_at)`);
+    
+    // ===== ÍNDICES PARA PERMISSÕES ESPECIAIS =====
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_permissions_lookup 
+             ON permissoes_especiais(grupo_id, usuario_id, comando)`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_permissions_expires 
+             ON permissoes_especiais(expires_at) 
+             WHERE expires_at IS NOT NULL`);
+    
+    // ===== ÍNDICES CRÍTICOS PARA APELIDOS =====
+    // Usado constantemente nos comandos de apelido
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_apelidos_lookup 
+             ON apelidos(grupo_id, usuario_id)`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_apelidos_nickname_unique 
+             ON apelidos(grupo_id, LOWER(nickname))`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_apelidos_locked 
+             ON apelidos(locked) WHERE locked = 1`);
+    
+    // ===== ÍNDICES PARA SILENCIAMENTO =====
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_silenciados_active 
+             ON silenciados(grupo_id, usuario_id, expires_at)`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_silenciados_expires 
+             ON silenciados(expires_at) 
+             WHERE expires_at IS NOT NULL`);
+    
+    // ===== ÍNDICES PARA AUDITORIA =====
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_auditoria_usuario_comando 
+             ON auditoria(usuario_id, comando)`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_auditoria_timestamp 
+             ON auditoria(timestamp)`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_auditoria_grupo_timestamp 
+             ON auditoria(grupo_id, timestamp)`);
+    
+    logger.success('✅ Índices de performance criados!');
+    
+  } catch (error) {
+    logger.warn('⚠️ Alguns índices já existem:', error.message);
+  }
+}
+
+// ===== PREPARED STATEMENTS OTIMIZADOS =====
+// Todas as consultas são pré-compiladas para máxima performance
+
+const statements = {
+  // ========== USUÁRIOS ==========
+  insertUser: db.prepare(`
+    INSERT OR REPLACE INTO usuarios (id, name, phone, updated_at) 
+    VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+  `),
+  
+  getUser: db.prepare(`
+    SELECT * FROM usuarios WHERE id = ? LIMIT 1
+  `),
+  
+  getUserByPhone: db.prepare(`
+    SELECT * FROM usuarios WHERE phone = ? LIMIT 1
+  `),
+  
+  // ========== GRUPOS ==========
+  insertGroup: db.prepare(`
+    INSERT OR REPLACE INTO grupos (id, name, description, updated_at) 
+    VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+  `),
+  
+  getGroup: db.prepare(`
+    SELECT * FROM grupos WHERE id = ? LIMIT 1
+  `),
+  
+  // ========== ADMINISTRADORES (CRÍTICO) ==========
+  // Esta é a consulta mais importante - otimizada ao máximo
+  isGroupAdmin: db.prepare(`
+    SELECT 1 FROM admins_grupos 
+    WHERE grupo_id = ? AND usuario_id = ? 
+    LIMIT 1
+  `),
+  
+  addGroupAdmin: db.prepare(`
+    INSERT OR REPLACE INTO admins_grupos (grupo_id, usuario_id, granted_by) 
+    VALUES (?, ?, ?)
+  `),
+  
+  removeGroupAdmin: db.prepare(`
+    DELETE FROM admins_grupos 
+    WHERE grupo_id = ? AND usuario_id = ?
+  `),
+  
+  getAllGroupAdmins: db.prepare(`
+    SELECT ag.usuario_id, ag.granted_by, ag.granted_at, u.name 
+    FROM admins_grupos ag
+    LEFT JOIN usuarios u ON ag.usuario_id = u.id
+    WHERE ag.grupo_id = ?
+    ORDER BY 
+      CASE WHEN ag.usuario_id = ? THEN 0 ELSE 1 END,
+      ag.granted_at ASC
+  `),
+  
+  // ========== PERMISSÕES ESPECIAIS ==========
+  hasSpecialPermission: db.prepare(`
+    SELECT permitido FROM permissoes_especiais 
+    WHERE grupo_id = ? AND usuario_id = ? AND comando = ? 
+    AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
+    LIMIT 1
+  `),
+  
+  grantSpecialPermission: db.prepare(`
+    INSERT OR REPLACE INTO permissoes_especiais 
+    (grupo_id, usuario_id, comando, permitido, granted_by, expires_at) 
+    VALUES (?, ?, ?, ?, ?, ?)
+  `),
+  
+  revokeSpecialPermission: db.prepare(`
+    DELETE FROM permissoes_especiais 
+    WHERE grupo_id = ? AND usuario_id = ? AND comando = ?
+  `),
+  
+  // ========== APELIDOS (CRÍTICO) ==========
+  // Otimizado para o sistema de apelidos mais usado
+  getNickname: db.prepare(`
+    SELECT nickname, locked, created_at, updated_at, set_by 
+    FROM apelidos 
+    WHERE grupo_id = ? AND usuario_id = ? 
+    LIMIT 1
+  `),
+  
+  setNickname: db.prepare(`
+    INSERT OR REPLACE INTO apelidos 
+    (grupo_id, usuario_id, nickname, set_by, locked, updated_at) 
+    VALUES (?, ?, ?, ?, 
+      COALESCE((SELECT locked FROM apelidos WHERE grupo_id = ? AND usuario_id = ?), 0),
+      CURRENT_TIMESTAMP
+    )
+  `),
+  
+  isNicknameInUse: db.prepare(`
+    SELECT 1 FROM apelidos 
+    WHERE grupo_id = ? AND LOWER(nickname) = LOWER(?) AND usuario_id != ? 
+    LIMIT 1
+  `),
+  
+  lockNickname: db.prepare(`
+    UPDATE apelidos 
+    SET locked = ?, updated_at = CURRENT_TIMESTAMP 
+    WHERE grupo_id = ? AND usuario_id = ?
+  `),
+  
+  getAllNicknamesInGroup: db.prepare(`
+    SELECT a.usuario_id, a.nickname, a.locked, a.created_at, a.updated_at,
+           u.name as usuario_nome, set_by.name as definido_por_nome
+    FROM apelidos a
+    LEFT JOIN usuarios u ON a.usuario_id = u.id
+    LEFT JOIN usuarios set_by ON a.set_by = set_by.id
+    WHERE a.grupo_id = ?
+    ORDER BY LOWER(a.nickname) COLLATE NOCASE
+  `),
+  
+  // ========== SILENCIAMENTO ==========
+  isSilenced: db.prepare(`
+    SELECT 1 FROM silenciados 
+    WHERE grupo_id = ? AND usuario_id = ? 
+    AND (expires_at IS NULL OR expires_at > datetime('now'))
+    LIMIT 1
+  `),
+  
+  addSilenced: db.prepare(`
+    INSERT OR REPLACE INTO silenciados 
+    (grupo_id, usuario_id, silenciado_por, motivo, minutos, expires_at) 
+    VALUES (?, ?, ?, ?, ?, ?)
+  `),
+  
+  removeSilenced: db.prepare(`
+    DELETE FROM silenciados 
+    WHERE grupo_id = ? AND usuario_id = ?
+  `),
+  
+  getSilenced: db.prepare(`
+    SELECT * FROM silenciados 
+    WHERE grupo_id = ? AND usuario_id = ? 
+    AND (expires_at IS NULL OR expires_at > datetime('now'))
+    LIMIT 1
+  `),
+  
+  getAllSilencedInGroup: db.prepare(`
+    SELECT s.*, u.name as usuario_nome 
+    FROM silenciados s 
+    LEFT JOIN usuarios u ON s.usuario_id = u.id 
+    WHERE s.grupo_id = ? 
+    AND (s.expires_at IS NULL OR s.expires_at > datetime('now'))
+    ORDER BY s.created_at DESC
+  `),
+  
+  removeAllSilencedInGroup: db.prepare(`
+    DELETE FROM silenciados WHERE grupo_id = ?
+  `),
+  
+  // ========== AUDITORIA ==========
+  logCommand: db.prepare(`
+    INSERT INTO auditoria 
+    (usuario_id, grupo_id, comando, argumentos, sucesso, erro) 
+    VALUES (?, ?, ?, ?, ?, ?)
+  `),
+  
+  getCommandHistory: db.prepare(`
+    SELECT * FROM auditoria 
+    WHERE usuario_id = ? 
+    ORDER BY timestamp DESC 
+    LIMIT ?
+  `),
+  
+  // ========== LIMPEZA E MANUTENÇÃO ==========
+  cleanExpiredSilenced: db.prepare(`
+    DELETE FROM silenciados 
+    WHERE expires_at IS NOT NULL AND expires_at <= datetime('now')
+  `),
+  
+  cleanOldAuditoria: db.prepare(`
+    DELETE FROM auditoria 
+    WHERE timestamp < ?
+  `)
+};
+
+// ===== FUNÇÕES DE PERFORMANCE E DIAGNÓSTICO =====
+
+/**
+ * Executa teste de performance do banco
+ * Verifica se as operações estão rápidas
+ */
+function runPerformanceTest() {
+  logger.info('🔍 Executando teste de performance...');
+  
+  const start = process.hrtime.bigint();
+  
+  try {
+    // Teste de INSERT
+    const testId = `test_${Date.now()}@c.us`;
+    statements.insertUser.run(testId, 'Test User', '5519999999999');
+    
+    // Teste de SELECT
+    const user = statements.getUser.get(testId);
+    
+    // Teste de consulta de admin (mais comum)
+    statements.isGroupAdmin.get('test@g.us', testId);
+    
+    // Cleanup
+    db.prepare('DELETE FROM usuarios WHERE id = ?').run(testId);
+    
+    const end = process.hrtime.bigint();
+    const duration = Number(end - start) / 1000000; // ms
+    
+    logger.success(`✅ Performance: ${duration.toFixed(2)}ms`);
+    
+    if (duration > 50) {
+      logger.warn('⚠️ Performance degradada - verifique sistema');
+    } else {
+      logger.success('🚀 Performance excelente!');
+    }
+    
+    return { duration: duration.toFixed(2), status: duration > 50 ? 'slow' : 'fast' };
+    
+  } catch (error) {
+    logger.error('❌ Erro no teste:', error.message);
+    return { duration: 'error', status: 'error' };
+  }
+}
+
+/**
+ * Configura jobs de limpeza automática
+ * Remove dados antigos para manter performance
+ */
+function setupAutomaticCleanup() {
+  logger.info('🧹 Configurando limpeza automática...');
+  
+  // Limpeza de silenciamentos expirados (a cada hora)
+  setInterval(() => {
+    try {
+      const result = statements.cleanExpiredSilenced.run();
+      if (result.changes > 0) {
+        logger.info(`🧹 ${result.changes} silenciamentos expirados removidos`);
+      }
+    } catch (error) {
+      logger.error('❌ Erro na limpeza de silenciamentos:', error.message);
+    }
+  }, 60 * 60 * 1000); // 1 hora
+  
+  // Limpeza de auditoria antiga (a cada 24 horas - manter 30 dias)
+  setInterval(() => {
+    try {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 30);
+      
+      const result = statements.cleanOldAuditoria.run(cutoff.toISOString());
+      if (result.changes > 0) {
+        logger.info(`🧹 ${result.changes} registros de auditoria antigos removidos`);
+      }
+    } catch (error) {
+      logger.error('❌ Erro na limpeza de auditoria:', error.message);
+    }
+  }, 24 * 60 * 60 * 1000); // 24 horas
+  
+  // Otimização automática do banco (a cada 6 horas)
+  setInterval(() => {
+    try {
+      db.pragma('optimize');
+      logger.info('🚀 Banco otimizado automaticamente');
+    } catch (error) {
+      logger.error('❌ Erro na otimização:', error.message);
+    }
+  }, 6 * 60 * 60 * 1000); // 6 horas
+}
+
+/**
+ * Obtém estatísticas do banco
+ */
+function getDatabaseStats() {
+  try {
+    const stats = {};
+    
+    // Contadores de tabelas
+    stats.usuarios = db.prepare('SELECT COUNT(*) as count FROM usuarios').get().count;
+    stats.grupos = db.prepare('SELECT COUNT(*) as count FROM grupos').get().count;
+    stats.admins = db.prepare('SELECT COUNT(*) as count FROM admins_grupos').get().count;
+    stats.apelidos = db.prepare('SELECT COUNT(*) as count FROM apelidos').get().count;
+    stats.silenciados = db.prepare('SELECT COUNT(*) as count FROM silenciados WHERE expires_at IS NULL OR expires_at > datetime("now")').get().count;
+    stats.auditoria = db.prepare('SELECT COUNT(*) as count FROM auditoria').get().count;
+    
+    // Tamanho do banco
+    const size = fs.statSync(DB_PATH).size;
+    stats.tamanho = `${(size / 1024 / 1024).toFixed(2)} MB`;
+    
+    // Performance info
+    const pragmas = {
+      journal_mode: db.pragma('journal_mode', { simple: true }),
+      cache_size: db.pragma('cache_size', { simple: true }),
+      synchronous: db.pragma('synchronous', { simple: true })
+    };
+    stats.config = pragmas;
+    
+    return stats;
+    
+  } catch (error) {
+    logger.error('❌ Erro ao obter estatísticas:', error.message);
+    return null;
+  }
+}
+
+// ===== INICIALIZAÇÃO COMPLETA =====
+
+// 1. Executar migrations
+runMigrations();
+
+// 2. Criar índices
+createOptimizedIndexes();
+
+// 3. Aplicar otimização final
+try {
+  db.pragma('optimize');
+  logger.success('✅ Otimização final aplicada');
+} catch (error) {
+  logger.warn('⚠️ Otimização final falhou:', error.message);
+}
+
+// 4. Executar teste de performance
+setTimeout(() => {
+  runPerformanceTest();
+}, 1000);
+
+// 5. Configurar limpeza automática
+setupAutomaticCleanup();
+
+logger.success('🎯 Database SQLite completamente otimizado e pronto!');
+
+// ===== EXPORTAÇÕES =====
+module.exports = {
+  db,
+  statements,
+  runPerformanceTest,
+  setupAutomaticCleanup,
+  getDatabaseStats
+};
