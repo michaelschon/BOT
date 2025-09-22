@@ -4,9 +4,10 @@
   "description": "Bot do WhatsApp para grupo de volleyball com sistema avançado de permissões",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node_modules/.bin/nodemon index.js",
+    "dev": "node_modules/.bin/nodemon index.js",
+    "fix": "node fix-database.js",
+    "clean": "rm -rf data/ && echo 'Dados limpos!'"
   },
   "keywords": [
     "whatsapp",
@@ -18,21 +19,17 @@
   "author": "Volleyball Team",
   "license": "ISC",
   "dependencies": {
-    "whatsapp-web.js": "^1.23.0",
-    "qrcode-terminal": "^0.12.0",
     "better-sqlite3": "^9.0.0",
-    "chalk": "^4.1.2"
+    "chalk": "^4.1.2",
+    "date": "^2.0.6",
+    "node-schedule": "^2.1.1",
+    "qrcode-terminal": "^0.12.0",
+    "whatsapp-web.js": "^1.23.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.0"
   },
   "engines": {
     "node": ">=16.0.0"
-  },
-  "scripts": {
-    "start": "node_modules/.bin/nodemon index.js",
-    "dev": "node_modules/.bin/nodemon index.js",
-    "fix": "node fix-database.js",
-    "clean": "rm -rf data/ && echo 'Dados limpos!'"
-  }  
+  }
 }
