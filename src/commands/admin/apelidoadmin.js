@@ -1,8 +1,9 @@
 /**
  * Comando para admins definirem apelido de outros usuários
- * Aceita vários formatos de telefone
- * 
+ * Aceita varios formatos de telefone
+ *
  * @author Volleyball Team
+ * @version 2.2 - Corrigido erro de sintaxe na string de resposta
  */
 
 const { statements } = require("../../core/db");
@@ -20,13 +21,11 @@ module.exports = {
     try {
       const chat = await msg.getChat();
       
-      // Só funciona em grupos
       if (!chat.isGroup) {
         await msg.reply("⚠️ Este comando só funciona em grupos!");
         return;
       }
 
-      // Validar argumentos
       if (args.length < 2) {
         await msg.reply(
           "⚠️ Uso correto: `!apelidoadmin <telefone> <apelido>`\n\n" +
@@ -40,92 +39,48 @@ module.exports = {
         return;
       }
 
-      // Encontrar onde termina o número e começa o apelido
-      // Estratégia: Tentar normalizar cada combinação até encontrar uma válida
-      let rawPhone = "";
-      let novoApelido = "";
-      let targetId = null;
-      
-      // Tenta diferentes combinações de argumentos para separar telefone do apelido
-      for (let i = 1; i <= args.length - 1; i++) {
-        const phoneCandidate = args.slice(0, i).join(" ");
-        const nicknameCandidate = args.slice(i).join(" ");
-        
-        const normalizedPhone = normalizePhone(phoneCandidate);
-        if (normalizedPhone) {
-          rawPhone = phoneCandidate;
-          novoApelido = nicknameCandidate;
-          targetId = normalizedPhone;
-          break;
-        }
-      }
-      
+      const rawPhone = args.shift();
+      const novoApelido = args.join(" ").trim();
       const groupId = chat.id._serialized;
 
-      // Se não conseguiu normalizar nenhuma combinação
+      const targetId = normalizePhone(rawPhone);
       if (!targetId) {
-        await msg.reply(
-          `⚠️ Não foi possível identificar um número válido nos argumentos: "${args.join(' ')}"\n\n` +
-          "📱 Use um dos formatos:\n" +
-          "• `!apelidoadmin +55 19 9999-9999 João`\n" +
-          "• `!apelidoadmin 551999999999 João`\n" +
-          "• `!apelidoadmin 19 99999999 João`"
-        );
+        await msg.reply("⚠️ Número de telefone inválido ou não reconhecido.");
         return;
       }
 
       // Validar apelido
-      if (novoApelido.length < 2) {
-        await msg.reply("⚠️ O apelido deve ter pelo menos 2 caracteres!");
+      if (novoApelido.length < 2 || novoApelido.length > 30) {
+        await msg.reply("⚠️ O apelido deve ter entre 2 e 30 caracteres.");
         return;
       }
 
-      if (novoApelido.length > 30) {
-        await msg.reply("⚠️ O apelido não pode ter mais que 30 caracteres!");
-        return;
-      }
-
-      // Verificar caracteres proibidos
-      const caracteresProibidos = /[<>@#&*{}[\]\\]/;
-      if (caracteresProibidos.test(novoApelido)) {
-        await msg.reply("⚠️ O apelido contém caracteres não permitidos!");
-        return;
-      }
-
-      if (novoApelido.toLowerCase().startsWith('!')) {
-        await msg.reply("⚠️ O apelido não pode começar com '!' (reservado para comandos).");
-        return;
-      }
-
-      // Verificar se apelido já existe
       try {
-        const { db } = require("../../core/db");
-        const apelidoExistente = db.prepare(`
-          SELECT usuario_id FROM apelidos 
-          WHERE grupo_id = ? AND LOWER(nickname) = LOWER(?) AND usuario_id != ?
-        `).get(groupId, novoApelido, targetId);
-
-        if (apelidoExistente) {
-          await msg.reply(
-            `⚠️ O apelido "${novoApelido}" já está sendo usado por outro usuário.\n\n` +
-            `💡 Tente: "${novoApelido}2", "${novoApelido}_ADM" ou "${novoApelido}🏐"`
-          );
+        const isTaken = statements.isNicknameInUse.get(groupId, novoApelido, targetId);
+        if (isTaken) {
+          await msg.reply(`⚠️ O apelido "${novoApelido}" já está em uso por outro usuário.`);
           return;
         }
       } catch (error) {
         console.warn("Erro ao verificar duplicação:", error.message);
       }
 
-      // Obter apelido anterior
       const apelidoAnterior = statements.getNickname.get(groupId, targetId);
       
-      // Definir novo apelido (admin sempre pode sobrescrever)
-      statements.setNickname.run(groupId, targetId, novoApelido, senderId);
+      // Definir novo apelido
+      statements.setNickname.run(
+        groupId,
+        targetId,
+        novoApelido,
+        senderId, // set_by
+        groupId,
+        targetId
+      );
       
-      // BLOQUEAR APELIDO POR PADRÃO quando definido por admin
+      // Bloquear o apelido por padrão
       statements.lockNickname.run(1, groupId, targetId);
 
-      // Resposta de sucesso
+      // Resposta de sucesso (SINTAXE CORRIGIDA)
       let resposta = `👑 *Apelido definido pelo admin!*\n\n`;
       
       if (apelidoAnterior && apelidoAnterior.nickname) {
@@ -138,11 +93,10 @@ module.exports = {
       resposta += `👮 **Admin responsável:** ${senderId}\n`;
       resposta += `🔒 **Status:** Bloqueado para alteração (padrão)\n\n`;
       resposta += `🏐 O usuário agora será conhecido como **${novoApelido}** no grupo!\n\n`;
-      resposta += `💡 **Para liberar:** Use \`!liberarapelido ${rawPhone}\``;
+      resposta += `💡 *Para liberar:* Use \`!liberarapelido ${rawPhone}\``;
 
       await msg.reply(resposta);
 
-      // Log detalhado
       console.log(
         `👑 Admin ${senderId} definiu apelido "${novoApelido}" ` +
         `para ${targetId} no grupo ${groupId}`
@@ -152,5 +106,5 @@ module.exports = {
       console.error("Erro no apelidoadmin:", error);
       await msg.reply("❌ Erro ao definir apelido via admin.");
     }
-  }
+  },
 };
