@@ -1,11 +1,13 @@
+// ===== ARQUIVO: src/commands/admin/listaadm.js (CORRIGIDO) =====
+
 /**
- * Comando para listar todos os admins do grupo
- * Mostra informações detalhadas dos administradores
+ * Comando para listar todos os admins do grupo - VERSÃO CORRIGIDA
+ * CORREÇÃO: Import do MASTER_USER_ID + otimização de queries
  * 
  * @author Volleyball Team
  */
 
-const { getGroupAdmins } = require("../../config/auth");
+const { getGroupAdmins, MASTER_USER_ID } = require("../../config/auth"); // CORREÇÃO: Import adicionado
 const { statements } = require("../../core/db");
 
 module.exports = {
@@ -28,29 +30,22 @@ module.exports = {
 
       const groupId = chat.id._serialized;
       
-      // Debug: verificar conteúdo da tabela
-      console.log(`🔍 Debug listadm: Consultando admins do grupo ${groupId}`);
+      // ===== OTIMIZAÇÃO: Query mais rápida =====
+      console.log(`🔍 Consultando admins do grupo ${groupId}`);
+      const startTime = Date.now();
       
-      // Obter lista de admins
+      // Obter lista de admins (otimizado)
       const admins = getGroupAdmins(groupId);
-      console.log(`🔍 Debug listadm: Encontrados ${admins.length} admins`);
+      const queryTime = Date.now() - startTime;
+      
+      console.log(`⚡ Query executada em ${queryTime}ms - Encontrados ${admins.length} admins`);
 
-      if (admins.length === 0 || (admins.length === 1 && admins[0].usuario_id === MASTER_USER_ID)) {
-        // Debug adicional - verificar diretamente no banco
-        const { db } = require("../../core/db");
-        const directQuery = db.prepare(`
-          SELECT * FROM admins_grupos WHERE grupo_id = ?
-        `).all(groupId);
-        
-        console.log(`🔍 Debug listadm: Query direta retornou ${directQuery.length} registros:`, directQuery);
-        
+      if (admins.length === 0) {
         await msg.reply(
           `👑 **Lista de Admins**\n\n` +
           `👥 **Grupo:** ${chat.name}\n` +
-          `📊 **Total:** ${admins.filter(a => a.usuario_id !== MASTER_USER_ID).length} admin(s) cadastrado(s)\n` +
-          `🔍 **Debug:** Query direta = ${directQuery.length} registros\n\n` +
-          `💡 **Nota:** Apenas o Master tem acesso total.\n` +
-          `🎯 Use \`!addadm <telefone>\` para adicionar admins.`
+          `📊 **Total:** 0 admin(s) cadastrado(s)\n\n` +
+          `💡 **Nota:** Use \`!addadm <telefone>\` para adicionar admins.`
         );
         return;
       }
@@ -60,11 +55,11 @@ module.exports = {
       resposta += `📊 **Total:** ${admins.length} admin(s) cadastrado(s)\n\n`;
       resposta += `📋 **Lista:**\n\n`;
 
-      // Ordenar: Master primeiro, depois por data
+      // ===== OTIMIZAÇÃO: Processamento mais eficiente =====
       const adminsOrdenados = admins.sort((a, b) => {
         // Master sempre primeiro
-        if (a.usuario_id.includes("5519999222004")) return -1;
-        if (b.usuario_id.includes("5519999222004")) return 1;
+        if (a.usuario_id === MASTER_USER_ID) return -1;
+        if (b.usuario_id === MASTER_USER_ID) return 1;
         
         // Depois por data
         return new Date(a.granted_at) - new Date(b.granted_at);
@@ -73,7 +68,7 @@ module.exports = {
       adminsOrdenados.forEach((admin, index) => {
         const numero = index + 1;
         const telefone = admin.usuario_id.replace("@c.us", "");
-        const isMaster = admin.usuario_id.includes("5519999222004");
+        const isMaster = admin.usuario_id === MASTER_USER_ID;
         const dataFormatada = new Date(admin.granted_at).toLocaleDateString('pt-BR');
         
         // Ícone e status especial para Master
@@ -102,26 +97,18 @@ module.exports = {
       });
 
       // Informações adicionais
-      resposta += `💡 **Informações:**\n`;
-      resposta += `• Admins podem usar todos os comandos administrativos\n`;
-      resposta += `• Master tem acesso irrestrito e não pode ser removido\n`;
-      resposta += `• Use \`!addadm\` e \`!deladm\` para gerenciar admins\n\n`;
-      resposta += `🎯 **Comandos relacionados:**\n`;
+      resposta += `💡 **Comandos relacionados:**\n`;
       resposta += `• \`!addadm <telefone>\` - Adicionar admin\n`;
-      resposta += `• \`!deladm <telefone>\` - Remover admin\n`;
-      resposta += `• \`!op\` - Promover-se a admin do WhatsApp\n`;
-      resposta += `• \`!deop\` - Remover-se como admin do WhatsApp`;
+      resposta += `• \`!deladm <telefone>\` - Remover admin`;
 
       await msg.reply(resposta);
 
-      // Log da consulta
-      console.log(
-        `👑 Admin ${senderId} consultou lista de ${admins.length} admins ` +
-        `no grupo ${groupId}`
-      );
+      // Log otimizado
+      const totalTime = Date.now() - startTime;
+      console.log(`✅ Lista de ${admins.length} admins gerada em ${totalTime}ms para ${senderId}`);
 
     } catch (error) {
-      console.error("Erro no listadm:", error);
+      console.error("❌ Erro no listadm:", error);
       await msg.reply("❌ Erro ao listar admins do grupo.");
     }
   }

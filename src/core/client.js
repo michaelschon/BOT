@@ -316,6 +316,11 @@ async function restartClient(client) {
 }
 
 /**
+ * Função sendWelcomeMessage corrigida para o arquivo src/core/client.js
+ * CORREÇÃO: vCard da Julia no formato correto
+ */
+
+/**
  * Envia mensagem de boas-vindas para novo membro
  * @param {Client} client Cliente do WhatsApp
  * @param {Chat} chat Chat do grupo
@@ -326,7 +331,7 @@ async function sendWelcomeMessage(client, chat, userId, userName) {
   try {
     logger.info(`👋 Enviando boas-vindas para ${userName} (${userId}) no grupo ${chat.name}`);
     
-    // Mensagem principal de boas-vindas mais acolhedora
+    // ===== MENSAGEM PRINCIPAL DE BOAS-VINDAS =====
     const welcomeMsg = 
       `🏐 Seja muito bem-vindo(a) ao nosso grupo de vôlei, ${userName || 'novo(a) membro'}!\n\n` +
       `Que alegria ter você aqui conosco! 🎉\n\n` +
@@ -344,27 +349,26 @@ async function sendWelcomeMessage(client, chat, userId, userName) {
     // Aguardar um pouco antes de enviar o contato
     await new Promise(resolve => setTimeout(resolve, 2000));
     
-    // Criar vCard da Julia
-    const juliaVCard = 
-      `BEGIN:VCARD\n` +
-      `VERSION:3.0\n` +
-      `FN:Júlia (ADM)\n` +
-      `N:Júlia;;;;;\n` +
-      `ORG:Admin Amigos do Vôlei\n` +
-      `TITLE:Julia ADM Amigos do Vôlei\n` +
-      `TEL;TYPE=CELL:+5519971548071\n` +
-      `NOTE:Admin do grupo de vôlei. Entre em contato para fazer seu cadastro e participar das partidas!\n` +
-      `END:VCARD`;
+    // ===== vCard DA JULIA - FORMATO CORRIGIDO =====
+    // Baseado no código antigo que funcionava corretamente
+    const juliaVCard = [
+      'BEGIN:VCARD',
+      'VERSION:3.0',
+      'FN:Júlia (ADM)',
+      'ORG:Amigos do Vôlei',
+      'TEL;type=CELL;type=VOICE;waid=5519971548071:+55 19 97154-8071',
+      'END:VCARD'
+    ].join('\n');
 
-    // Enviar vCard da Julia
+    // Enviar vCard da Julia com parseVCards: true (importante!)
     await client.sendMessage(chat.id._serialized, juliaVCard, {
-      type: 'vcard',
-      displayName: 'Júlia (ADM)',
-      vcard: juliaVCard
+      parseVCards: true
     });
     
-    // Mensagem explicativa sobre o contato
+    // Aguardar antes da mensagem explicativa
     await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // ===== MENSAGEM EXPLICATIVA =====
     await client.sendMessage(chat.id._serialized, 
       `☝️ **Este é o contato da Júlia!**\n\n` +
       `📱 Clique no cartão acima para adicionar aos seus contatos\n` +

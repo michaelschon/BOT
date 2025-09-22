@@ -299,7 +299,7 @@ const COMMAND_CONFIGS = {
   "!welcome": {
     enabled: true,
     requireAdmin: true,
-    allowedGroups: [GRUPO_AUTORIZADO],
+    allowedGroups: [],
     description: "Configura sistema de boas-vindas automático",
     category: "admin",
     aliases: ["!boasvindas", "!bemvindo"]

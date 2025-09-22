@@ -1,14 +1,17 @@
 /**
- * Utilitários para normalização de números de telefone
+ * Utilitários para normalização de números de telefone - VERSÃO CORRIGIDA
  * Focado no padrão brasileiro (+55) para WhatsApp
+ * CORREÇÃO: Lógica aprimorada para diferentes formatos de entrada
  * 
- * @author Volleyball Team
+ * @author Volleyball Team & Gemini AI
+ * @version 2.1 - Correção de parsing robusto
  */
 
 const logger = require("./logger");
 
 /**
  * Normaliza um número de telefone para o formato WhatsApp brasileiro
+ * VERSÃO CORRIGIDA: Agora lida corretamente com formatos como "+55 19 99999-9999"
  * @param {string} input Número de telefone em qualquer formato
  * @returns {string|null} Número normalizado ou null se inválido
  */
@@ -22,75 +25,147 @@ function normalizePhone(input) {
     // Remove todos os caracteres que não são dígitos
     let digits = input.replace(/\D/g, "");
     
-    logger.debug(`🔄 Normalizando telefone: "${input}" -> "${digits}"`);
+    logger.debug(`🔄 Normalizando telefone: "${input}" -> "${digits}" (${digits.length} dígitos)`);
     
-    // Casos possíveis:
+    // ===== CASOS POSSÍVEIS (CORRIGIDOS) =====
     
-    // 1. Número com 11 dígitos (DDD + 9 + número)
-    // Exemplo: 19999222004
-    if (digits.length === 11 && digits.startsWith('1')) {
+    // 1. Input muito curto (menos de 8 dígitos) = inválido
+    if (digits.length < 8) {
+      logger.warn(`⚠️ Número muito curto: "${input}" -> ${digits.length} dígitos`);
+      return null;
+    }
+    
+    // 2. Input muito longo (mais de 13 dígitos) = inválido  
+    if (digits.length > 13) {
+      logger.warn(`⚠️ Número muito longo: "${input}" -> ${digits.length} dígitos`);
+      return null;
+    }
+    
+    // 3. Número com 8 dígitos: provavelmente número local sem DDD
+    // Exemplo: 99999999 -> assumir DDD 19
+    if (digits.length === 8) {
+      logger.debug(`🔧 Assumindo DDD 19 para número local: ${digits}`);
+      digits = "55199" + digits; // +55 19 9XXXXXXX
+    }
+    
+    // 4. Número com 9 dígitos: provavelmente número local com 9º dígito mas sem DDD
+    // Exemplo: 999999999 -> assumir DDD 19
+    else if (digits.length === 9 && digits.startsWith('9')) {
+      logger.debug(`🔧 Assumindo DDD 19 para celular: ${digits}`);
+      digits = "5519" + digits; // +55 19 9XXXXXXXX
+    }
+    
+    // 5. Número com 10 dígitos: DDD + número sem 9º dígito
+    // Exemplo: 1999999999 -> 5519999999999
+    else if (digits.length === 10) {
+      const ddd = digits.substring(0, 2);
+      const numero = digits.substring(2);
+      
+      // Validar DDD
+      if (!isValidBrazilianAreaCode(ddd)) {
+        logger.warn(`⚠️ DDD inválido: ${ddd}`);
+        return null;
+      }
+      
+      // Adicionar 9º dígito se não existir
+      if (!numero.startsWith('9')) {
+        digits = "55" + ddd + "9" + numero;
+        logger.debug(`🔧 Adicionado 9º dígito: ${digits}`);
+      } else {
+        digits = "55" + digits;
+        logger.debug(`🔧 Adicionado DDI: ${digits}`);
+      }
+    }
+    
+    // 6. Número com 11 dígitos: DDD + 9 + número
+    // Exemplo: 19999999999 -> 5519999999999
+    else if (digits.length === 11) {
+      const ddd = digits.substring(0, 2);
+      const ninthDigit = digits.charAt(2);
+      
+      // Validar DDD
+      if (!isValidBrazilianAreaCode(ddd)) {
+        logger.warn(`⚠️ DDD inválido: ${ddd}`);
+        return null;
+      }
+      
+      // Validar 9º dígito
+      if (ninthDigit !== '9') {
+        logger.warn(`⚠️ Número sem 9º dígito: ${digits}`);
+        return null;
+      }
+      
       digits = "55" + digits; // Adiciona DDI Brasil
-      logger.debug(`✅ Formato 11 dígitos: ${digits}`);
+      logger.debug(`🔧 Adicionado DDI para número completo: ${digits}`);
     }
     
-    // 2. Número já com DDI 55 completo (13 dígitos)
-    // Exemplo: 5519999222004
-    else if (digits.length === 13 && digits.startsWith("55")) {
-      logger.debug(`✅ Formato já completo: ${digits}`);
-      // Já está correto
-    }
-    
-    // 3. Número com DDI mas sem o 9º dígito (12 dígitos)
-    // Exemplo: 551999222004 -> 5519999222004
+    // 7. Número com 12 dígitos: DDI + DDD + número sem 9º dígito
+    // Exemplo: 551999999999 -> 5519999999999
     else if (digits.length === 12 && digits.startsWith("55")) {
-      // Insere o 9º dígito após o DDD
       const ddd = digits.substring(2, 4);
       const numero = digits.substring(4);
+      
+      // Validar DDD
+      if (!isValidBrazilianAreaCode(ddd)) {
+        logger.warn(`⚠️ DDD inválido: ${ddd}`);
+        return null;
+      }
+      
+      // Inserir 9º dígito
       digits = "55" + ddd + "9" + numero;
-      logger.debug(`✅ Adicionado 9º dígito: ${digits}`);
+      logger.debug(`🔧 Adicionado 9º dígito para número com DDI: ${digits}`);
     }
     
-    // 4. Número internacional completo com + (remove o +)
-    // Exemplo: +5519999222004
-    else if (digits.length === 13 && input.startsWith('+55')) {
-      logger.debug(`✅ Removido + do formato internacional: ${digits}`);
-      // Já está correto
+    // 8. Número com 13 dígitos: formato completo
+    // Exemplo: 5519999999999 -> 5519999999999
+    else if (digits.length === 13 && digits.startsWith("55")) {
+      logger.debug(`✅ Formato já completo: ${digits}`);
+      // Já está correto, apenas validar
     }
     
-    // 5. Formatos inválidos
+    // 9. Outros casos = inválidos
     else {
-      logger.warn(`⚠️ Formato de telefone não reconhecido: "${input}" (${digits.length} dígitos)`);
+      logger.warn(`⚠️ Formato não reconhecido: "${input}" -> ${digits} (${digits.length} dígitos)`);
       return null;
     }
     
-    // Validações finais
+    // ===== VALIDAÇÕES FINAIS =====
+    
+    // Deve ter exatamente 13 dígitos
     if (digits.length !== 13) {
-      logger.warn(`⚠️ Número com comprimento inválido: ${digits} (${digits.length} dígitos)`);
+      logger.warn(`⚠️ Comprimento final inválido: ${digits} (${digits.length} dígitos)`);
       return null;
     }
     
+    // Deve começar com 55 (Brasil)
     if (!digits.startsWith("55")) {
-      logger.warn(`⚠️ Número não é brasileiro (não começa com 55): ${digits}`);
+      logger.warn(`⚠️ Não é número brasileiro: ${digits}`);
       return null;
     }
     
-    // Valida DDD brasileiro (11-99)
+    // Validar DDD
     const ddd = digits.substring(2, 4);
-    const dddNum = parseInt(ddd);
-    if (dddNum < 11 || dddNum > 99) {
-      logger.warn(`⚠️ DDD inválido: ${ddd}`);
+    if (!isValidBrazilianAreaCode(ddd)) {
+      logger.warn(`⚠️ DDD inválido no resultado final: ${ddd}`);
       return null;
     }
     
-    // Valida se tem o 9º dígito para celular
+    // Validar 9º dígito
     const ninthDigit = digits.charAt(4);
     if (ninthDigit !== '9') {
-      logger.warn(`⚠️ Número sem 9º dígito (não é celular): ${digits}`);
+      logger.warn(`⚠️ Número final sem 9º dígito: ${digits}`);
+      return null;
+    }
+    
+    // Validar que o número não tem dígitos repetidos demais (anti-spam)
+    const uniqueDigits = new Set(digits.substring(5)).size;
+    if (uniqueDigits < 3) {
+      logger.warn(`⚠️ Número suspeito (poucos dígitos únicos): ${digits}`);
       return null;
     }
     
     const normalizedNumber = digits + "@c.us";
-    logger.debug(`✅ Número normalizado: ${normalizedNumber}`);
+    logger.success(`✅ Número normalizado com sucesso: "${input}" -> "${normalizedNumber}"`);
     
     return normalizedNumber;
     
@@ -101,41 +176,56 @@ function normalizePhone(input) {
 }
 
 /**
+ * Valida se um DDD é válido no Brasil
+ * @param {string} ddd DDD com 2 dígitos
+ * @returns {boolean} True se válido
+ */
+function isValidBrazilianAreaCode(ddd) {
+  const dddNum = parseInt(ddd);
+  
+  // DDDs válidos do Brasil (11-99, exceto alguns que não existem)
+  const validAreaCodes = [
+    11, 12, 13, 14, 15, 16, 17, 18, 19, // São Paulo
+    21, 22, 24,                          // Rio de Janeiro
+    27, 28,                              // Espírito Santo
+    31, 32, 33, 34, 35, 37, 38,         // Minas Gerais
+    41, 42, 43, 44, 45, 46,             // Paraná
+    47, 48, 49,                          // Santa Catarina
+    51, 53, 54, 55,                      // Rio Grande do Sul
+    61,                                  // Distrito Federal
+    62, 64,                              // Goiás
+    63,                                  // Tocantins
+    65, 66,                              // Mato Grosso
+    67,                                  // Mato Grosso do Sul
+    68,                                  // Acre
+    69,                                  // Rondônia
+    71, 73, 74, 75, 77,                 // Bahia
+    79,                                  // Sergipe
+    81, 87,                              // Pernambuco
+    82,                                  // Alagoas
+    83,                                  // Paraíba
+    84,                                  // Rio Grande do Norte
+    85, 88,                              // Ceará
+    86, 89,                              // Piauí
+    91, 93, 94,                          // Pará
+    92, 97,                              // Amazonas
+    95,                                  // Roraima
+    96,                                  // Amapá
+    98, 99                               // Maranhão
+  ];
+  
+  return validAreaCodes.includes(dddNum);
+}
+
+/**
  * Normaliza especificamente para formato brasileiro E164
  * Mais restritivo que normalizePhone
  * @param {string} input Número de telefone
  * @returns {string|null} Número no formato WhatsApp ou null
  */
 function normalizeBrazilE164(input) {
-  if (!input) return null;
-  
-  try {
-    // Corrige escape duplo na regex original
-    let digits = input.replace(/\D/g, "");
-    
-    logger.debug(`🇧🇷 Normalizando Brasil E164: "${input}" -> "${digits}"`);
-    
-    // Se já tem DDI 55, valida e retorna
-    if (digits.startsWith("55") && digits.length === 13) {
-      const result = digits + "@c.us";
-      logger.debug(`✅ E164 já correto: ${result}`);
-      return result;
-    }
-    
-    // Se tem 11 dígitos, adiciona DDI
-    if (digits.length === 11) {
-      const result = "55" + digits + "@c.us";
-      logger.debug(`✅ E164 adicionado DDI: ${result}`);
-      return result;
-    }
-    
-    logger.warn(`⚠️ E164 formato inválido: ${digits}`);
-    return null;
-    
-  } catch (error) {
-    logger.error("❌ Erro ao normalizar Brasil E164:", error.message);
-    return null;
-  }
+  // Reutiliza a função principal que já foi corrigida
+  return normalizePhone(input);
 }
 
 /**
@@ -364,6 +454,37 @@ function generateTestNumbers(count = 5) {
   return testNumbers;
 }
 
+/**
+ * Função para debug: testa vários formatos de entrada
+ * @param {string} input Número de entrada
+ * @returns {object} Resultado do teste
+ */
+function debugPhoneNormalization(input) {
+  console.log(`\n🔧 DEBUG: Testando normalização para "${input}"`);
+  
+  const result = normalizePhone(input);
+  const info = result ? extractPhoneInfo(result) : null;
+  
+  const debugInfo = {
+    input,
+    output: result,
+    success: !!result,
+    info,
+    formatted: info ? formatPhoneDisplay(result) : null,
+    masked: info ? maskPhone(result) : null,
+    region: info ? getRegionInfo(result) : null
+  };
+  
+  console.log(`   Input: "${input}"`);
+  console.log(`   Output: ${result || 'null'}`);
+  console.log(`   Success: ${debugInfo.success}`);
+  if (debugInfo.formatted) {
+    console.log(`   Formatted: ${debugInfo.formatted}`);
+  }
+  
+  return debugInfo;
+}
+
 module.exports = {
   normalizePhone,
   normalizeBrazilE164,
@@ -374,5 +495,7 @@ module.exports = {
   maskPhone,
   getRegionInfo,
   generateTestNumbers,
+  isValidBrazilianAreaCode,
+  debugPhoneNormalization,
   BRAZILIAN_AREA_CODES
 };
